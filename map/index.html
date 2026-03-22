@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Air Quality Map</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+        }
+
+        #map {
+            height: 100vh;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div id="map"></div>
+
+    <script>
+
+        const map = L.map('map').setView([56.8333, 60.5833], 11)
+
+        L.tileLayer(
+            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            { maxZoom: 19 }
+        ).addTo(map)
+
+        let markers = []
+
+        function color(pm25) {
+
+            if (pm25 < 10) return "green"
+            if (pm25 < 25) return "yellow"
+            if (pm25 < 50) return "orange"
+
+            return "red"
+        }
+
+        async function loadData() {
+
+            const response = await fetch("/api/measurement")
+            const data = await response.json()
+
+            markers.forEach(m => map.removeLayer(m))
+            markers = []
+
+            data.forEach(point => {
+
+                const marker = L.circleMarker(
+                    [point.latitude, point.longitude],
+                    {
+                        radius: 6,
+                        color: color(point.pm25)
+                    }
+                )
+
+                marker.bindPopup(`
+    CO: ${point.co}<br>
+    NO2: ${point.no2}<br>
+    PM2.5: ${point.pm25}<br>
+    PM10: ${point.pm10}
+  `)
+
+                marker.addTo(map)
+                markers.push(marker)
+
+            })
+
+        }
+
+        loadData()
+
+        setInterval(loadData, 5000)
+
+    </script>
+
+</body>
+
+</html>

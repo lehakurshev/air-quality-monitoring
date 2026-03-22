@@ -1,0 +1,83 @@
+version: '3.9'
+
+services:
+  redis:
+    image: redis:latest
+    container_name: redis_container
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_USER=${REDIS_USER}
+      - REDIS_USER_PASSWORD=${REDIS_USER_PASSWORD}
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./redisdata:/data
+    command: >
+      sh -c '
+        mkdir -p /usr/local/etc/redis &&
+        echo "bind 0.0.0.0" > /usr/local/etc/redis/redis.conf &&
+        echo "requirepass $REDIS_PASSWORD" >> /usr/local/etc/redis/redis.conf &&
+        echo "appendonly yes" >> /usr/local/etc/redis/redis.conf &&
+        echo "appendfsync everysec" >> /usr/local/etc/redis/redis.conf &&
+        echo "user default on nopass ~* +@all" > /usr/local/etc/redis/users.acl &&
+        echo "user $REDIS_USER on >$REDIS_USER_PASSWORD ~* +@all" >> /usr/local/etc/redis/users.acl &&
+        redis-server /usr/local/etc/redis/redis.conf --aclfile /usr/local/etc/redis/users.acl
+      '
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "$REDIS_PASSWORD", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: aq_postgres
+    command: postgres -c max_connections=2000
+    environment:
+      POSTGRES_DB: aq_monitoring
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+
+  backend:
+    container_name: aq_backend
+    build:
+      context: ./backend
+      dockerfile: ./AirQualityMonitoring.Core/Dockerfile
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      Redis__Host: redis
+      Redis__User: ${REDIS_USER}
+      Redis__Password: ${REDIS_USER_PASSWORD}
+      DbConnectionString: ${DB_CONNECTION_STRING}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  k6:
+    image: grafana/k6:latest
+    container_name: aq_k6
+    volumes:
+      - ./k6:/scripts
+    depends_on:
+      - backend
+    command: run /scripts/k6-script.js
+
+  map:
+    image: nginx:latest
+    container_name: aq_map
+    ports:
+      - "3000:80"
+    volumes:
+      - ./map/index.html:/usr/share/nginx/html/index.html
+      - ./map/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - backend
