@@ -58,7 +58,6 @@ builder.Services.AddSingleton<IDbConnectionFactory>(_ =>
     )
 );
 
-// ✅ Redis (ПРАВИЛЬНО С USER + PASSWORD)
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
