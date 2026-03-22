@@ -5,13 +5,15 @@ using AirQualityMonitoring.Infrastructure.Postgres;
 using Dapper;
 using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
-using Microsoft.AspNetCore.Authentication; // Добавьте
+using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration.AddEnvironmentVariables();
+
 builder.Services.AddEndpoints(typeof(Program).Assembly);
 
-// Исправленная аутентификация
+// Аутентификация
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = "CustomScheme";
@@ -22,6 +24,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen(options =>
 {
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -32,7 +35,7 @@ builder.Services.AddSwaggerGen(options =>
         Type = SecuritySchemeType.Http,
         Scheme = "bearer"
     });
-    
+
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -49,18 +52,35 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-builder.Services.AddSingleton<IDbConnectionFactory>(_ => 
-    new NpgsqlDbConnectionFactory(builder.Configuration["DbConnectionString"]!));
+builder.Services.AddSingleton<IDbConnectionFactory>(_ =>
+    new NpgsqlDbConnectionFactory(
+        builder.Configuration["DbConnectionString"]!
+    )
+);
 
+// ✅ Redis (ПРАВИЛЬНО С USER + PASSWORD)
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
-    return ConnectionMultiplexer.Connect(new ConfigurationOptions
+
+    var host = config["Redis:Host"];
+    var user = config["Redis:User"];
+    var password = config["Redis:Password"];
+
+    var options = new ConfigurationOptions
     {
-        EndPoints = { config["Redis:Host"] },
-        Password = config["Redis:Password"],
         AbortOnConnectFail = false
-    });
+    };
+
+    options.EndPoints.Add(host);
+
+    if (!string.IsNullOrEmpty(user))
+        options.User = user;
+
+    if (!string.IsNullOrEmpty(password))
+        options.Password = password;
+
+    return ConnectionMultiplexer.Connect(options);
 });
 
 builder.Services.AddSingleton<RedisManager>();
@@ -73,7 +93,7 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.UseAuthentication();  // Должен быть перед UseAuthorization
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseEndpoints(app.MapGroup("/api"));

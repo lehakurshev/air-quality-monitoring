@@ -1,11 +1,11 @@
+version: "3.9"
+
 services:
   redis:
     image: redis:latest
     container_name: redis_container
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - REDIS_USER=${REDIS_USER}
-      - REDIS_USER_PASSWORD=${REDIS_USER_PASSWORD}
+    env_file:
+      - .env
     ports:
       - "6380:6379"
     volumes:
@@ -21,21 +21,13 @@ services:
         echo "user $REDIS_USER on >$REDIS_USER_PASSWORD ~* +@all" >> /usr/local/etc/redis/users.acl &&
         redis-server /usr/local/etc/redis/redis.conf --aclfile /usr/local/etc/redis/users.acl
       '
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "$REDIS_PASSWORD", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
     restart: unless-stopped
 
   postgres:
     image: postgres:16
     container_name: aq_postgres
-    command: postgres -c max_connections=2000
-    environment:
-      POSTGRES_DB: aq_monitoring
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+    env_file:
+      - .env
     ports:
       - "5432:5432"
     volumes:
@@ -51,8 +43,10 @@ services:
     depends_on:
       - postgres
       - redis
+    env_file:
+      - .env
     environment:
-      Redis__Host: redis
+      Redis__Host: ${REDIS_HOST}
       Redis__User: ${REDIS_USER}
       Redis__Password: ${REDIS_USER_PASSWORD}
       DbConnectionString: ${DB_CONNECTION_STRING}
