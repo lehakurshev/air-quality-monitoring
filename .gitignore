@@ -30,7 +30,6 @@ artifacts/
 **/docker-compose*.yml
 **/pgdata/
 **/redisdata/
-**/db-init/*.sql
 
 # OS Files
 .DS_Store
