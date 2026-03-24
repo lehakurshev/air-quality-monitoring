@@ -5,12 +5,12 @@ sleep(20)  // ждем 20 секунд пока backend стартует
 
 export const options = {
   scenarios: {
-    users: {
+    load: {
       executor: "ramping-vus",
       startVUs: 0,
       stages: [
-        { duration: "5m", target: 1000 }, // постепенно подключаются
-        { duration: "55m", target: 1000 }
+        { duration: "2m", target: 1000 },
+        { duration: "58m", target: 1000 }
       ]
     }
   }
