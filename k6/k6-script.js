@@ -1,24 +1,32 @@
 import http from 'k6/http'
 import { check, sleep } from 'k6'
 
-sleep(20)  // ждем 20 секунд пока backend стартует
 
 export const options = {
   scenarios: {
+
+    register: {
+      executor: "constant-vus",
+      vus: 200,
+      duration: "2m",
+      exec: "registerUsers"
+    },
+
     load: {
       executor: "ramping-vus",
+      startTime: "2m",
       startVUs: 0,
       stages: [
         { duration: "2m", target: 1000 },
         { duration: "58m", target: 1000 }
-      ]
+      ],
+      exec: "loadTest"
     }
   }
 }
 
 const BASE_URL = 'http://backend:8080'
 
-// центр
 const BASE_LAT = 56.8333
 const BASE_LON = 60.5833
 const OFFSET = 0.05
@@ -32,41 +40,48 @@ function randomString(length) {
   return result
 }
 
-export default function () {
+export function registerUsers() {
+  const email = randomString(20)
+  const password = randomString(20)
 
-  // уникальная точка устройства
-  const latitude = BASE_LAT + (Math.random() * 2 - 1) * OFFSET
-  const longitude = BASE_LON + (Math.random() * 2 - 1) * OFFSET
+  const res = http.post(
+    `${BASE_URL}/api/auth/register`,
+    JSON.stringify({ email, password }),
+    { headers: { 'Content-Type': 'application/json' } }
+  )
+
+  check(res, {
+    'register ok': (r) => r.status === 200
+  })
+}
+
+export function loadTest() {
 
   const email = randomString(20)
   const password = randomString(20)
 
-  // REGISTER
   const registerRes = http.post(
     `${BASE_URL}/api/auth/register`,
     JSON.stringify({ email, password }),
     { headers: { 'Content-Type': 'application/json' } }
   )
 
-  check(registerRes, {
-    'register ok': (r) => r.status === 200
-  })
+  if (registerRes.status !== 200) return
 
   const apiToken = registerRes.json().apiToken
 
-  // два цикла по 30 минут
+  const latitude = BASE_LAT + (Math.random() * 2 - 1) * OFFSET
+  const longitude = BASE_LON + (Math.random() * 2 - 1) * OFFSET
+
   for (let tokenCycle = 0; tokenCycle < 2; tokenCycle++) {
 
-    // получить access token
     const tokenRes = http.post(
       `${BASE_URL}/api/auth/token`,
       JSON.stringify({ apiToken }),
       { headers: { 'Content-Type': 'application/json' } }
     )
 
-    check(tokenRes, {
-      'token ok': (r) => r.status === 200
-    })
+    if (tokenRes.status !== 200) return
 
     const accessToken = tokenRes.json().accessToken
 
@@ -77,7 +92,6 @@ export default function () {
       }
     }
 
-    // 30 measurement запросов
     for (let i = 0; i < 30; i++) {
 
       const payload = JSON.stringify({
@@ -99,10 +113,9 @@ export default function () {
         'measurement ok': (r) => r.status === 200
       })
 
-      sleep(60) // примерно раз в минуту
+      sleep(60)
     }
 
-    // ждём до истечения токена
-    sleep(1800) // 30 минут
+    sleep(1800)
   }
 }
