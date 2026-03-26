@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Интерактивная карта: точки по клику + экспорт CSV</title>
+    <!-- Leaflet CSS и JS (библиотека для карт) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Дополнительный плагин для управления слоями (опционально) -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #2b3b4e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .map-container {
+            background: #1e2a36;
+            border-radius: 20px;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.3);
+            overflow: hidden;
+            width: 1200px;
+            max-width: 95vw;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #map {
+            height: 65vh;
+            min-height: 450px;
+            width: 100%;
+            background: #c8e0e0;
+            z-index: 1;
+        }
+
+        .controls {
+            padding: 18px 24px;
+            background: #f8fafc;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            border-top: 1px solid #cbd5e1;
+        }
+
+        .info-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: baseline;
+            font-size: 0.9rem;
+            color: #0f172a;
+            background: #eef2ff;
+            padding: 8px 16px;
+            border-radius: 40px;
+        }
+
+        .info-panel span {
+            font-weight: bold;
+            color: #1e3a8a;
+        }
+
+        button {
+            background: #2c5f8a;
+            border: none;
+            color: white;
+            font-weight: 600;
+            padding: 10px 24px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: #1e405e;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .clear-btn {
+            background: #9e2d2f;
+        }
+        .clear-btn:hover {
+            background: #731f21;
+        }
+
+        .export-btn {
+            background: #2b6e4e;
+        }
+        .export-btn:hover {
+            background: #1f523a;
+        }
+
+        .coord-hint {
+            font-family: monospace;
+            font-size: 0.8rem;
+            background: #e9ecef;
+            padding: 4px 12px;
+            border-radius: 24px;
+            color: #0b3b5f;
+        }
+
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            padding: 8px;
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        @media (max-width: 700px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .info-panel {
+                justify-content: center;
+                text-align: center;
+            }
+            button {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="map-container">
+    <div id="map"></div>
+    <div class="controls">
+        <div class="info-panel">
+            📍 Точки на карте: <span id="pointCount">0</span>
+            <div class="coord-hint">
+                🖱️ Клик по карте → добавить точку
+            </div>
+        </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button id="exportCsvBtn" class="export-btn">📎 Экспорт в CSV</button>
+            <button id="clearAllBtn" class="clear-btn">🗑 Очистить все точки</button>
+        </div>
+    </div>
+    <footer>
+        ⚡ Координаты: долгота (longitude_metair) / широта (latitude_metair) в формате WGS84
+    </footer>
+</div>
+
+<script>
+    // ---------- ИНИЦИАЛИЗАЦИЯ КАРТЫ ----------
+    // Центр карты: примерно центр России / Европы (можно изменить по желанию)
+    // Используем слой OpenStreetMap (бесплатный, без ключа)
+    const map = L.map('map').setView([55.751244, 37.618423], 5); // [широта, долгота] Москва + масштаб 5
+
+    // Базовый тайловый слой (OSM)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+        minZoom: 2
+    }).addTo(map);
+
+    // ---------- ХРАНИЛИЩЕ ТОЧЕК ----------
+    // Массив объектов вида { lat, lng, marker }
+    let points = [];
+
+    // Счетчик на UI
+    const pointCountSpan = document.getElementById('pointCount');
+
+    // Функция обновления счетчика
+    function updateCounterUI() {
+        pointCountSpan.innerText = points.length;
+    }
+
+    // Функция добавления точки (по широте и долготе)
+    function addPoint(latitude, longitude) {
+        // Создаем маркер с красивой иконкой (стандартная иконка Leaflet, но можно кастом)
+        const marker = L.marker([latitude, longitude]).addTo(map);
+        // Добавляем всплывающую подсказку с координатами (удобно)
+        marker.bindPopup(`
+            <b>📍 Точка</b><br>
+            <span style="font-family:monospace">
+            latitude_metair: ${latitude.toFixed(6)}<br>
+            longitude_metair: ${longitude.toFixed(6)}
+            </span>
+        `).openPopup(); // можно открыть сразу для визуального подтверждения, но не обязательно
+
+        // Сохраняем точку в массив
+        points.push({
+            lat: latitude,
+            lng: longitude,
+            marker: marker
+        });
+
+        // Обновляем счетчик
+        updateCounterUI();
+    }
+
+    // ---------- ОБРАБОТЧИК КЛИКА ПО КАРТЕ ----------
+    map.on('click', function(e) {
+        // e.latlng содержит объект { lat, lng }
+        const { lat, lng } = e.latlng;
+        // Добавляем точку
+        addPoint(lat, lng);
+    });
+
+    // ---------- ОЧИСТКА ВСЕХ ТОЧЕК ----------
+    function clearAllPoints() {
+        // Удаляем каждый маркер с карты
+        points.forEach(point => {
+            if (point.marker) {
+                map.removeLayer(point.marker);
+            }
+        });
+        // Очищаем массив
+        points = [];
+        updateCounterUI();
+        // Небольшой фидбек (опционально)
+        console.log('Все точки удалены');
+    }
+
+    // ---------- ЭКСПОРТ В CSV (longitude_metair, latitude_metair) ----------
+    function exportToCSV() {
+        if (points.length === 0) {
+            alert("Нет точек для экспорта. Добавьте точки, кликнув по карте.");
+            return;
+        }
+
+        // Заголовки CSV в точности как в задании: longitude_metair,latitude_metair
+        const headers = ['longitude_metair', 'latitude_metair'];
+        
+        // Формируем строки данных: для каждой точки долгота (lng) первой, широта (lat) второй
+        const rows = points.map(point => {
+            // Важно: в задании указано longitude_metair,latitude_metair (долгота, широта)
+            // Используем lng как долготу, lat как широту
+            // Форматируем с 6 знаками после запятой для аккуратности
+            const lonFormatted = point.lng.toFixed(6);
+            const latFormatted = point.lat.toFixed(6);
+            return `${lonFormatted},${latFormatted}`;
+        });
+        
+        // Собираем полный CSV контент (заголовки + строки)
+        const csvContent = [
+            headers.join(','),
+            ...rows
+        ].join('\n');
+        
+        // Создаём Blob с типом text/csv; charset=utf-8 (для корректной поддержки юникода)
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); // BOM для Excel
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        // Генерируем имя файла с текущей датой и временем
+        const now = new Date();
+        const timestamp = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}_${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}`;
+        const filename = `map_points_${timestamp}.csv`;
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        // Уведомление об успехе
+        alert(`Экспортировано ${points.length} точек в файл "${filename}"`);
+    }
+
+    // ---------- ПРИВЯЗКА КНОПОК UI ----------
+    document.getElementById('exportCsvBtn').addEventListener('click', exportToCSV);
+    document.getElementById('clearAllBtn').addEventListener('click', clearAllPoints);
+    
+    // ---------- ДОПОЛНИТЕЛЬНО: ПРИМЕР НЕСКОЛЬКИХ ТЕСТОВЫХ ТОЧЕК (опционально, для демо) ----------
+    // Чтобы карта не была пустой при первом открытии, добавим пару примеров (можно закомментировать)
+    // Однако для чистоты функционала оставим возможность начать с нуля. Добавим 2 демо-точки, показывающие как работает.
+    // Пользователь всегда может очистить их кнопкой "Очистить все точки".
+    // Это демонстрирует формат координат: долгота, широта. 
+    // Москва: широта 55.751244, долгота 37.618423
+    // Санкт-Петербург: 59.934280, 30.335099
+    setTimeout(() => {
+        // Добавляем демо-точки только если массив пуст (чтобы не дублировать при случайном перезапуске)
+        if (points.length === 0) {
+            addPoint(55.751244, 37.618423);   // Москва
+            addPoint(59.934280, 30.335099);   // Санкт-Петербург
+            addPoint(48.856614, 2.352222);    // Париж (демо)
+        }
+    }, 100); // небольшая задержка для уверенности, что карта полностью инициализирована
+</script>
+</body>
+</html>
