@@ -1,6 +1,6 @@
 version: "3.9"
 
-# Определяем сеть для nginx-proxy
+# Определяем сеть для всех сервисов
 networks:
   nginx-proxy:
     name: nginx-proxy
@@ -23,19 +23,26 @@ services:
         echo "requirepass $REDIS_PASSWORD" >> /usr/local/etc/redis/redis.conf &&
         echo "appendonly yes" >> /usr/local/etc/redis/redis.conf &&
         echo "appendfsync everysec" >> /usr/local/etc/redis/redis.conf &&
-        echo "user default on nopass ~* +@all" > /usr/local/etc/redis/users.acl &&
-        echo "user $REDIS_USER on >$REDIS_USER_PASSWORD ~* +@all" >> /usr/local/etc/redis/users.acl &&
-        redis-server /usr/local/etc/redis/redis.conf --aclfile /usr/local/etc/redis/users.acl
+        redis-server /usr/local/etc/redis/redis.conf
       '
     restart: unless-stopped
     networks:
       - nginx-proxy
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres:
     image: postgres:16
     container_name: aq_postgres
     env_file:
       - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aq_monitoring}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
@@ -44,6 +51,11 @@ services:
     restart: unless-stopped
     networks:
       - nginx-proxy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-aq_monitoring}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     container_name: aq_backend
@@ -51,23 +63,29 @@ services:
       context: ./backend
       dockerfile: ./AirQualityMonitoring.Core/Dockerfile
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - .env
     environment:
-      Redis__Host: ${REDIS_HOST}
-      Redis__User: ${REDIS_USER}
-      Redis__Password: ${REDIS_USER_PASSWORD}
-      DbConnectionString: ${DB_CONNECTION_STRING}
-      # Для nginx-proxy (HTTP only, без SSL)
-      VIRTUAL_HOST: aq.ural-net.ru
-      VIRTUAL_PORT: 8080
+      # Используем правильные имена переменных для подключения
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      - Redis__Host=redis
+      - Redis__Port=6379
+      - Redis__Password=${REDIS_PASSWORD}
     expose:
       - "8080"
     restart: unless-stopped
     networks:
       - nginx-proxy
+    # Для nginx-proxy
+    environment:
+      - VIRTUAL_HOST=${DOMAIN:-aq.ural-net.ru}
+      - VIRTUAL_PORT=8080
+      - LETSENCRYPT_HOST=${DOMAIN:-aq.ural-net.ru}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-email@aq.ural-net.ru}
 
   k6:
     image: grafana/k6:latest
@@ -85,16 +103,17 @@ services:
     image: nginx:latest
     container_name: aq_map_app
     volumes:
-      - ./map/index.html:/usr/share/nginx/html/index.html
+      - ./map:/usr/share/nginx/html:ro
     expose:
       - "80"
     restart: unless-stopped
     networks:
       - nginx-proxy
-    # Если нужно, чтобы map-app тоже был доступен через nginx-proxy, добавьте:
     environment:
-      - VIRTUAL_HOST=map.aq.ural-net.ru
+      - VIRTUAL_HOST=map.${DOMAIN:-aq.ural-net.ru}
       - VIRTUAL_PORT=80
+      - LETSENCRYPT_HOST=map.${DOMAIN:-aq.ural-net.ru}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-email@aq.ural-net.ru}
 
   # Готовый reverse proxy с автоматическим SSL
   nginx-proxy:
@@ -108,9 +127,12 @@ services:
       - ./ssl:/etc/nginx/certs
       - ./nginx/vhost.d:/etc/nginx/vhost.d
       - ./nginx/html:/usr/share/nginx/html
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     restart: unless-stopped
     networks:
       - nginx-proxy
+    labels:
+      - "com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy=true"
 
   # Автоматическое получение SSL сертификатов
   letsencrypt:
@@ -123,7 +145,8 @@ services:
       - ./nginx/html:/usr/share/nginx/html
     environment:
       - NGINX_PROXY_CONTAINER=aq_nginx_proxy
-      - DEFAULT_EMAIL=email@aq.ural-net.ru
+      - DEFAULT_EMAIL=${LETSENCRYPT_EMAIL:-email@aq.ural-net.ru}
+      - DEBUG=false
     depends_on:
       - nginx-proxy
     restart: unless-stopped
