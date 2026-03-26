@@ -1,0 +1,17 @@
+${DOMAIN} {
+    root * /usr/share/caddy
+    file_server
+    
+    handle_path /api/* {
+        reverse_proxy backend:8080
+    }
+    
+    handle /swagger/* {
+        reverse_proxy backend:8080
+    }
+    
+    log {
+        output file /data/access.log
+        format json
+    }
+}

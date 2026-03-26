@@ -10,8 +10,6 @@ services:
     container_name: redis_container
     env_file:
       - .env
-    # ports:
-    #   - "6380:6379"
     volumes:
       - ./redisdata:/data
     command: >
@@ -34,8 +32,6 @@ services:
     container_name: aq_postgres
     env_file:
       - .env
-    # ports:
-    #   - "5432:5432"
     volumes:
       - ./pgdata:/var/lib/postgresql/data
       - ./db-init:/docker-entrypoint-initdb.d
@@ -57,10 +53,28 @@ services:
       Redis__Host: ${REDIS_HOST}
       Redis__User: ${REDIS_USER}
       Redis__Password: ${REDIS_USER_PASSWORD}
-      # Используйте имя сервиса вместо IP
       DbConnectionString: ${DB_CONNECTION_STRING}
+    expose:
+      - "8080"
+    restart: unless-stopped
+    networks:
+      - aq-network
+
+  caddy:
+    image: caddy:latest
+    container_name: aq_caddy
     ports:
-      - "8080:8080"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./map:/usr/share/caddy
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN=${DOMAIN:-aq.ural-net.ru}
+    depends_on:
+      - backend
     restart: unless-stopped
     networks:
       - aq-network
@@ -76,51 +90,6 @@ services:
     networks:
       - aq-network
 
-  map:
-    image: nginx:latest
-    container_name: aq_map
-    ports:
-      - "3000:80"
-    volumes:
-      - ./map/index.html:/usr/share/nginx/html/index.html
-      - ./map/nginx.conf:/etc/nginx/nginx.conf
-    depends_on:
-      - backend
-    networks:
-      - aq-network
-
-  nginx-proxy:
-    image: jwilder/nginx-proxy:latest
-    container_name: aq_nginx_proxy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/tmp/docker.sock:ro
-      - ./ssl:/etc/nginx/certs
-      - ./nginx/vhost.d:/etc/nginx/vhost.d
-      - ./nginx/html:/usr/share/nginx/html
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    restart: unless-stopped
-    labels:
-      - "com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy=true"
-    networks:
-      - aq-network
-
-  letsencrypt:
-    image: jrcs/letsencrypt-nginx-proxy-companion:latest
-    container_name: aq_letsencrypt
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./ssl:/etc/nginx/certs
-      - ./nginx/vhost.d:/etc/nginx/vhost.d
-      - ./nginx/html:/usr/share/nginx/html
-    environment:
-      - NGINX_PROXY_CONTAINER=aq_nginx_proxy
-      - DEFAULT_EMAIL=${LETSENCRYPT_EMAIL:-email@aq.ural-net.ru}
-      - DEBUG=false
-    depends_on:
-      - nginx-proxy
-    restart: unless-stopped
-    networks:
-      - aq-network
+volumes:
+  caddy_data:
+  caddy_config:
