@@ -52,29 +52,18 @@ services:
       context: ./backend
       dockerfile: ./AirQualityMonitoring.Core/Dockerfile
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - postgres
+      - redis
     env_file:
       - .env
     environment:
-      # Используем правильные имена переменных для подключения
-      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
-      - Redis__Host=redis
-      - Redis__Port=6379
-      - Redis__Password=${REDIS_PASSWORD}
+      Redis__Host: ${REDIS_HOST}
+      Redis__User: ${REDIS_USER}
+      Redis__Password: ${REDIS_USER_PASSWORD}
+      DbConnectionString: ${DB_CONNECTION_STRING}
     expose:
       - "8080"
     restart: unless-stopped
-    networks:
-      - nginx-proxy
-    # Для nginx-proxy
-    environment:
-      - VIRTUAL_HOST=${DOMAIN:-aq.ural-net.ru}
-      - VIRTUAL_PORT=8080
-      - LETSENCRYPT_HOST=${DOMAIN:-aq.ural-net.ru}
-      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-email@aq.ural-net.ru}
 
   k6:
     image: grafana/k6:latest
