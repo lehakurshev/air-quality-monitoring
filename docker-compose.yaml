@@ -88,20 +88,14 @@ services:
   # Фронтенд приложение
   map-app:
     image: nginx:latest
-    container_name: aq_map_app
-    volumes:
-      - ./map:/usr/share/nginx/html:ro
-      - ./map/nginx.conf:/etc/nginx/nginx.conf
+    container_name: aq_map
     ports:
       - "3000:80"
-    restart: unless-stopped
+    volumes:
+      - ./map/index.html:/usr/share/nginx/html/index.html
+      - ./map/nginx.conf:/etc/nginx/nginx.conf
     networks:
       - nginx-proxy
-    environment:
-      - VIRTUAL_HOST=map.${DOMAIN:-aq.ural-net.ru}
-      - VIRTUAL_PORT=3000
-      - LETSENCRYPT_HOST=map.${DOMAIN:-aq.ural-net.ru}
-      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-email@aq.ural-net.ru}
 
   # Готовый reverse proxy с автоматическим SSL
   nginx-proxy:
