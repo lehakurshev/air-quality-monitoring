@@ -1,24 +1,55 @@
 import http from 'k6/http'
 import { check, sleep } from 'k6'
+import papaparse from 'https://jslib.k6.io/papaparse/5.1.1/index.js'
+import { SharedArray } from 'k6/data'
 
+// Загружаем и парсим CSV файл
+const csvData = new SharedArray('coordinates', function() {
+  const data = open('./metair_metadata_eea.csv')
+  return papaparse.parse(data, { header: true, skipEmptyLines: true }).data
+})
+
+// Извлекаем уникальные координаты (только первые 100)
+const uniqueCoordinates = (() => {
+  const coordsSet = new Set()
+  const uniqueCoords = []
+  
+  csvData.forEach(row => {
+    // Останавливаемся после нахождения 100 уникальных координат
+    if (uniqueCoords.length >= 100) return
+    
+    const lat = parseFloat(row.latitude_metair)
+    const lon = parseFloat(row.longitude_metair)
+    
+    // Проверяем, что координаты валидны
+    if (!isNaN(lat) && !isNaN(lon)) {
+      const key = `${lat},${lon}`
+      if (!coordsSet.has(key)) {
+        coordsSet.add(key)
+        uniqueCoords.push({ latitude: lat, longitude: lon })
+      }
+    }
+  })
+  
+  console.log(`Found ${uniqueCoords.length} unique coordinates (limited to 100)`)
+  return uniqueCoords
+})()
 
 export const options = {
   scenarios: {
-
     register: {
       executor: "constant-vus",
-      vus: 200,
+      vus: 100,
       duration: "2m",
       exec: "registerUsers"
     },
-
     load: {
       executor: "ramping-vus",
       startTime: "2m",
       startVUs: 0,
       stages: [
-        { duration: "2m", target: 1000 },
-        { duration: "58m", target: 1000 }
+        { duration: "2m", target: uniqueCoordinates.length }, // Используем количество уникальных координат (до 100)
+        { duration: "58m", target: uniqueCoordinates.length }
       ],
       exec: "loadTest"
     }
@@ -26,10 +57,6 @@ export const options = {
 }
 
 const BASE_URL = 'http://backend:8080'
-
-const BASE_LAT = 56.8333
-const BASE_LON = 60.5833
-const OFFSET = 0.05
 
 function randomString(length) {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -55,7 +82,20 @@ export function registerUsers() {
   })
 }
 
+// Хранилище для назначенных координат каждому VU
+const vuCoordinates = new Map()
+
 export function loadTest() {
+  // Получаем или назначаем координаты для текущего VU
+  let coordinates = vuCoordinates.get(__VU)
+  
+  if (!coordinates) {
+    // Назначаем координаты на основе индекса VU
+    const coordIndex = (__VU - 1) % uniqueCoordinates.length
+    coordinates = uniqueCoordinates[coordIndex]
+    vuCoordinates.set(__VU, coordinates)
+    console.log(`VU ${__VU} assigned coordinates: ${coordinates.latitude}, ${coordinates.longitude}`)
+  }
 
   const email = randomString(20)
   const password = randomString(20)
@@ -70,8 +110,9 @@ export function loadTest() {
 
   const apiToken = registerRes.json().apiToken
 
-  const latitude = BASE_LAT + (Math.random() * 2 - 1) * OFFSET
-  const longitude = BASE_LON + (Math.random() * 2 - 1) * OFFSET
+  // Используем назначенные координаты
+  const latitude = coordinates.latitude
+  const longitude = coordinates.longitude
 
   for (let tokenCycle = 0; tokenCycle < 2; tokenCycle++) {
 

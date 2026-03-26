@@ -1,6 +1,7 @@
 ﻿FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 
-RUN apt-get update \
+RUN sed -i 's/deb.debian.org/mirror.yandex.ru/g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
     && apt-get install -y libkrb5-3 \
     && rm -rf /var/lib/apt/lists/*
 
