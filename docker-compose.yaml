@@ -1,5 +1,11 @@
 version: "3.9"
 
+# Определяем сеть для nginx-proxy
+networks:
+  nginx-proxy:
+    name: nginx-proxy
+    driver: bridge
+
 services:
   redis:
     image: redis:latest
@@ -22,6 +28,8 @@ services:
         redis-server /usr/local/etc/redis/redis.conf --aclfile /usr/local/etc/redis/users.acl
       '
     restart: unless-stopped
+    networks:
+      - nginx-proxy
 
   postgres:
     image: postgres:16
@@ -34,6 +42,8 @@ services:
       - ./pgdata:/var/lib/postgresql/data
       - ./db-init:/docker-entrypoint-initdb.d
     restart: unless-stopped
+    networks:
+      - nginx-proxy
 
   backend:
     container_name: aq_backend
@@ -50,9 +60,14 @@ services:
       Redis__User: ${REDIS_USER}
       Redis__Password: ${REDIS_USER_PASSWORD}
       DbConnectionString: ${DB_CONNECTION_STRING}
+      # Для nginx-proxy (HTTP only, без SSL)
+      VIRTUAL_HOST: aq.ural-net.ru
+      VIRTUAL_PORT: 8080
     expose:
       - "8080"
     restart: unless-stopped
+    networks:
+      - nginx-proxy
 
   k6:
     image: grafana/k6:latest
@@ -62,6 +77,8 @@ services:
     depends_on:
       - backend
     command: run /scripts/k6-script.js
+    networks:
+      - nginx-proxy
 
   # Фронтенд приложение
   map-app:
@@ -72,6 +89,12 @@ services:
     expose:
       - "80"
     restart: unless-stopped
+    networks:
+      - nginx-proxy
+    # Если нужно, чтобы map-app тоже был доступен через nginx-proxy, добавьте:
+    environment:
+      - VIRTUAL_HOST=map.aq.ural-net.ru
+      - VIRTUAL_PORT=80
 
   # Готовый reverse proxy с автоматическим SSL
   nginx-proxy:
@@ -86,6 +109,8 @@ services:
       - ./nginx/vhost.d:/etc/nginx/vhost.d
       - ./nginx/html:/usr/share/nginx/html
     restart: unless-stopped
+    networks:
+      - nginx-proxy
 
   # Автоматическое получение SSL сертификатов
   letsencrypt:
@@ -98,7 +123,9 @@ services:
       - ./nginx/html:/usr/share/nginx/html
     environment:
       - NGINX_PROXY_CONTAINER=aq_nginx_proxy
-      - DEFAULT_EMAIL=email@aq.ural-net.ru  # Замените на ваш email
+      - DEFAULT_EMAIL=email@aq.ural-net.ru
     depends_on:
       - nginx-proxy
     restart: unless-stopped
+    networks:
+      - nginx-proxy
