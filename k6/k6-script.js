@@ -9,30 +9,54 @@ const csvData = new SharedArray('coordinates', function() {
   return papaparse.parse(data, { header: true, skipEmptyLines: true }).data
 })
 
-// Извлекаем уникальные координаты (только первые 100)
+// Извлекаем 1000 случайных уникальных координат
 const uniqueCoordinates = (() => {
-  const coordsSet = new Set()
-  const uniqueCoords = []
+  const allValidCoords = []
   
+  // Сначала собираем все валидные координаты
   csvData.forEach(row => {
-    // Останавливаемся после нахождения 100 уникальных координат
-    if (uniqueCoords.length >= 100) return
-    
     const lat = parseFloat(row.latitude_metair)
     const lon = parseFloat(row.longitude_metair)
     
     // Проверяем, что координаты валидны
     if (!isNaN(lat) && !isNaN(lon)) {
-      const key = `${lat},${lon}`
-      if (!coordsSet.has(key)) {
-        coordsSet.add(key)
-        uniqueCoords.push({ latitude: lat, longitude: lon })
-      }
+      allValidCoords.push({ latitude: lat, longitude: lon })
     }
   })
   
-  console.log(`Found ${uniqueCoords.length} unique coordinates (limited to 100)`)
-  return uniqueCoords
+  console.log(`Total valid coordinates found: ${allValidCoords.length}`)
+  
+  // Удаляем дубликаты, используя Set для уникальности
+  const uniqueMap = new Map()
+  allValidCoords.forEach(coord => {
+    const key = `${coord.latitude},${coord.longitude}`
+    if (!uniqueMap.has(key)) {
+      uniqueMap.set(key, coord)
+    }
+  })
+  
+  const uniqueCoordsArray = Array.from(uniqueMap.values())
+  console.log(`Unique coordinates after deduplication: ${uniqueCoordsArray.length}`)
+  
+  // Перемешиваем массив для случайного выбора (Фишера-Йетса)
+  for (let i = uniqueCoordsArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [uniqueCoordsArray[i], uniqueCoordsArray[j]] = [uniqueCoordsArray[j], uniqueCoordsArray[i]]
+  }
+  
+  // Берем первые 1000 или меньше, если доступно меньше
+  const targetCount = Math.min(1000, uniqueCoordsArray.length)
+  const selectedCoords = uniqueCoordsArray.slice(0, targetCount)
+  
+  console.log(`Selected ${selectedCoords.length} random unique coordinates (target: 1000)`)
+  
+  // Выводим первые 5 выбранных координат для проверки
+  console.log("Sample selected coordinates:")
+  selectedCoords.slice(0, 5).forEach((coord, idx) => {
+    console.log(`  ${idx + 1}: ${coord.latitude}, ${coord.longitude}`)
+  })
+  
+  return selectedCoords
 })()
 
 export const options = {
@@ -48,7 +72,7 @@ export const options = {
       startTime: "2m",
       startVUs: 0,
       stages: [
-        { duration: "2m", target: uniqueCoordinates.length }, // Используем количество уникальных координат (до 100)
+        { duration: "2m", target: uniqueCoordinates.length }, // Используем количество уникальных координат (до 1000)
         { duration: "58m", target: uniqueCoordinates.length }
       ],
       exec: "loadTest"
