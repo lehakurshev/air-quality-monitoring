@@ -9,7 +9,6 @@ const csvData = new SharedArray('coordinates', function() {
   return papaparse.parse(data, { header: true, skipEmptyLines: true }).data
 })
 
-// Извлекаем 1000 случайных уникальных координат
 const uniqueCoordinates = (() => {
   const allValidCoords = []
   
@@ -44,11 +43,10 @@ const uniqueCoordinates = (() => {
     [uniqueCoordsArray[i], uniqueCoordsArray[j]] = [uniqueCoordsArray[j], uniqueCoordsArray[i]]
   }
   
-  // Берем первые 1000 или меньше, если доступно меньше
-  const targetCount = Math.min(1000, uniqueCoordsArray.length)
+  const targetCount = Math.min(500, uniqueCoordsArray.length)
   const selectedCoords = uniqueCoordsArray.slice(0, targetCount)
   
-  console.log(`Selected ${selectedCoords.length} random unique coordinates (target: 1000)`)
+  console.log(`Selected ${selectedCoords.length} random unique coordinates`)
   
   // Выводим первые 5 выбранных координат для проверки
   console.log("Sample selected coordinates:")
@@ -72,7 +70,7 @@ export const options = {
       startTime: "2m",
       startVUs: 0,
       stages: [
-        { duration: "2m", target: uniqueCoordinates.length }, // Используем количество уникальных координат (до 1000)
+        { duration: "2m", target: uniqueCoordinates.length },
         { duration: "58m", target: uniqueCoordinates.length }
       ],
       exec: "loadTest"
