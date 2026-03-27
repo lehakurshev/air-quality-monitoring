@@ -3,21 +3,29 @@ import { check, sleep } from 'k6'
 import papaparse from 'https://jslib.k6.io/papaparse/5.1.1/index.js'
 import { SharedArray } from 'k6/data'
 
-// Загружаем и парсим CSV файл
+// Загружаем и парсим CSV файл (выполняется один раз)
 const csvData = new SharedArray('coordinates', function() {
   const data = open('./metair_metadata_eea.csv')
   return papaparse.parse(data, { header: true, skipEmptyLines: true }).data
 })
 
-const uniqueCoordinates = (() => {
+// ВЫНОСИМ логику выбора координат в функцию, которая выполнится один раз
+// Используем сразу вычисление, но оборачиваем в функцию, чтобы гарантировать однократное выполнение
+let uniqueCoordinates = null
+
+function getUniqueCoordinates() {
+  if (uniqueCoordinates !== null) {
+    return uniqueCoordinates
+  }
+  
+  console.log("Initializing coordinates (this should happen only once)...")
+  
   const allValidCoords = []
   
-  // Сначала собираем все валидные координаты
   csvData.forEach(row => {
     const lat = parseFloat(row.latitude_metair)
     const lon = parseFloat(row.longitude_metair)
     
-    // Проверяем, что координаты валидны
     if (!isNaN(lat) && !isNaN(lon)) {
       allValidCoords.push({ latitude: lat, longitude: lon })
     }
@@ -25,7 +33,7 @@ const uniqueCoordinates = (() => {
   
   console.log(`Total valid coordinates found: ${allValidCoords.length}`)
   
-  // Удаляем дубликаты, используя Set для уникальности
+  // Удаляем дубликаты
   const uniqueMap = new Map()
   allValidCoords.forEach(coord => {
     const key = `${coord.latitude},${coord.longitude}`
@@ -37,25 +45,28 @@ const uniqueCoordinates = (() => {
   const uniqueCoordsArray = Array.from(uniqueMap.values())
   console.log(`Unique coordinates after deduplication: ${uniqueCoordsArray.length}`)
   
-  // Перемешиваем массив для случайного выбора (Фишера-Йетса)
+  // Перемешиваем массив
   for (let i = uniqueCoordsArray.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [uniqueCoordsArray[i], uniqueCoordsArray[j]] = [uniqueCoordsArray[j], uniqueCoordsArray[i]]
   }
   
-  const targetCount = Math.min(500, uniqueCoordsArray.length)
+  // Берем первые 1000 или меньше
+  const targetCount = Math.min(1000, uniqueCoordsArray.length)
   const selectedCoords = uniqueCoordsArray.slice(0, targetCount)
   
   console.log(`Selected ${selectedCoords.length} random unique coordinates`)
-  
-  // Выводим первые 5 выбранных координат для проверки
   console.log("Sample selected coordinates:")
   selectedCoords.slice(0, 5).forEach((coord, idx) => {
     console.log(`  ${idx + 1}: ${coord.latitude}, ${coord.longitude}`)
   })
   
-  return selectedCoords
-})()
+  uniqueCoordinates = selectedCoords
+  return uniqueCoordinates
+}
+
+// Получаем координаты один раз
+const finalCoordinates = getUniqueCoordinates()
 
 export const options = {
   scenarios: {
@@ -70,8 +81,8 @@ export const options = {
       startTime: "2m",
       startVUs: 0,
       stages: [
-        { duration: "2m", target: uniqueCoordinates.length },
-        { duration: "58m", target: uniqueCoordinates.length }
+        { duration: "2m", target: finalCoordinates.length },
+        { duration: "58m", target: finalCoordinates.length }
       ],
       exec: "loadTest"
     }
@@ -113,10 +124,13 @@ export function loadTest() {
   
   if (!coordinates) {
     // Назначаем координаты на основе индекса VU
-    const coordIndex = (__VU - 1) % uniqueCoordinates.length
-    coordinates = uniqueCoordinates[coordIndex]
+    const coordIndex = (__VU - 1) % finalCoordinates.length
+    coordinates = finalCoordinates[coordIndex]
     vuCoordinates.set(__VU, coordinates)
-    console.log(`VU ${__VU} assigned coordinates: ${coordinates.latitude}, ${coordinates.longitude}`)
+    // Убираем лишний лог, чтобы не спамить
+    if (__VU <= 10) {
+      console.log(`VU ${__VU} assigned coordinates: ${coordinates.latitude}, ${coordinates.longitude}`)
+    }
   }
 
   const email = randomString(20)
@@ -132,7 +146,6 @@ export function loadTest() {
 
   const apiToken = registerRes.json().apiToken
 
-  // Используем назначенные координаты
   const latitude = coordinates.latitude
   const longitude = coordinates.longitude
 
