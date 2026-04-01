@@ -1,11 +1,13 @@
 ﻿FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 
-RUN sed -i 's/deb.debian.org/mirror.yandex.ru/g' /etc/apt/sources.list.d/debian.sources \
-    && apt-get update \
-    && apt-get install -y libkrb5-3 \
+RUN echo "deb http://mirror.yandex.ru/debian bookworm main contrib non-free non-free-firmware" > /etc/apt/sources.list && \
+    echo "deb http://mirror.yandex.ru/debian bookworm-updates main contrib non-free non-free-firmware" >> /etc/apt/sources.list && \
+    echo "deb http://mirror.yandex.ru/debian-security bookworm-security main contrib non-free non-free-firmware" >> /etc/apt/sources.list && \
+    apt-get update && apt-get install -y \
+    libkrb5-3 \
+    libgssapi-krb5-2 \
     && rm -rf /var/lib/apt/lists/*
 
-USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
@@ -26,4 +28,7 @@ RUN dotnet publish "AirQualityMonitoring.Core.csproj" -c $BUILD_CONFIGURATION -o
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+
+USER $APP_UID
+
 ENTRYPOINT ["dotnet", "AirQualityMonitoring.Core.dll"]
