@@ -3,195 +3,174 @@ import { check, sleep } from 'k6'
 import papaparse from 'https://jslib.k6.io/papaparse/5.1.1/index.js'
 import { SharedArray } from 'k6/data'
 
-// Загружаем и парсим CSV файл (выполняется один раз)
-const csvData = new SharedArray('coordinates', function() {
-  const data = open('./metair_metadata_eea.csv')
-  return papaparse.parse(data, { header: true, skipEmptyLines: true }).data
+const BASE_URL = 'http://backend:8080'
+const TARGET_COORDINATES = 1000
+
+// =====================================
+// CSV parsing (runs once)
+// =====================================
+const finalCoordinates = new SharedArray('coordinates', () => {
+  const csv = open('./metair_metadata_eea.csv')
+  const rows = papaparse.parse(csv, {
+    header: true,
+    skipEmptyLines: true,
+  }).data
+
+  const uniqueSet = new Set()
+  const uniqueCoords = []
+
+  for (const row of rows) {
+    const lat = Number(row.latitude_metair)
+    const lon = Number(row.longitude_metair)
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue
+
+    const key = `${lat},${lon}`
+    if (uniqueSet.has(key)) continue
+
+    uniqueSet.add(key)
+    uniqueCoords.push({
+      latitude: lat,
+      longitude: lon,
+    })
+  }
+
+  // Fisher-Yates shuffle
+  for (let i = uniqueCoords.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[uniqueCoords[i], uniqueCoords[j]] = [uniqueCoords[j], uniqueCoords[i]]
+  }
+
+  return uniqueCoords.slice(0, Math.min(TARGET_COORDINATES, uniqueCoords.length))
 })
 
-// ВЫНОСИМ логику выбора координат в функцию, которая выполнится один раз
-// Используем сразу вычисление, но оборачиваем в функцию, чтобы гарантировать однократное выполнение
-let uniqueCoordinates = null
-
-function getUniqueCoordinates() {
-  if (uniqueCoordinates !== null) {
-    return uniqueCoordinates
-  }
-  
-  console.log("Initializing coordinates (this should happen only once)...")
-  
-  const allValidCoords = []
-  
-  csvData.forEach(row => {
-    const lat = parseFloat(row.latitude_metair)
-    const lon = parseFloat(row.longitude_metair)
-    
-    if (!isNaN(lat) && !isNaN(lon)) {
-      allValidCoords.push({ latitude: lat, longitude: lon })
-    }
-  })
-  
-  console.log(`Total valid coordinates found: ${allValidCoords.length}`)
-  
-  // Удаляем дубликаты
-  const uniqueMap = new Map()
-  allValidCoords.forEach(coord => {
-    const key = `${coord.latitude},${coord.longitude}`
-    if (!uniqueMap.has(key)) {
-      uniqueMap.set(key, coord)
-    }
-  })
-  
-  const uniqueCoordsArray = Array.from(uniqueMap.values())
-  console.log(`Unique coordinates after deduplication: ${uniqueCoordsArray.length}`)
-  
-  // Перемешиваем массив
-  for (let i = uniqueCoordsArray.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [uniqueCoordsArray[i], uniqueCoordsArray[j]] = [uniqueCoordsArray[j], uniqueCoordsArray[i]]
-  }
-  
-  // Берем первые 1000 или меньше
-  const targetCount = Math.min(1000, uniqueCoordsArray.length)
-  const selectedCoords = uniqueCoordsArray.slice(0, targetCount)
-  
-  console.log(`Selected ${selectedCoords.length} random unique coordinates`)
-  console.log("Sample selected coordinates:")
-  selectedCoords.slice(0, 5).forEach((coord, idx) => {
-    console.log(`  ${idx + 1}: ${coord.latitude}, ${coord.longitude}`)
-  })
-  
-  uniqueCoordinates = selectedCoords
-  return uniqueCoordinates
-}
-
-// Получаем координаты один раз
-const finalCoordinates = getUniqueCoordinates()
-
+// =====================================
+// Test options
+// =====================================
 export const options = {
+  discardResponseBodies: true,
+
   scenarios: {
-    register: {
-      executor: "constant-vus",
-      vus: 100,
-      duration: "2m",
-      exec: "registerUsers"
-    },
     load: {
-      executor: "ramping-vus",
-      startTime: "2m",
+      executor: 'ramping-vus',
       startVUs: 0,
       stages: [
-        { duration: "2m", target: finalCoordinates.length },
-        { duration: "58m", target: finalCoordinates.length }
+        { duration: '3m', target: finalCoordinates.length }, // плавнее разгон
+        { duration: '57m', target: finalCoordinates.length },
       ],
-      exec: "loadTest"
-    }
-  }
+      exec: 'loadTest',
+    },
+  },
 }
 
-const BASE_URL = 'http://backend:8080'
-
+// =====================================
+// Helpers
+// =====================================
 function randomString(length) {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   let result = ''
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
+    result += chars[(Math.random() * chars.length) | 0]
   }
   return result
 }
 
-export function registerUsers() {
-  const email = randomString(20)
-  const password = randomString(20)
+// =====================================
+// Per-VU state
+// =====================================
+let vuState = null
 
-  const res = http.post(
-    `${BASE_URL}/api/auth/register`,
-    JSON.stringify({ email, password }),
-    { headers: { 'Content-Type': 'application/json' } }
-  )
+function initVuState() {
+  if (vuState) return vuState
 
-  check(res, {
-    'register ok': (r) => r.status === 200
-  })
-}
+  const coordIndex = (__VU - 1) % finalCoordinates.length
+  const coordinates = finalCoordinates[coordIndex]
 
-// Хранилище для назначенных координат каждому VU
-const vuCoordinates = new Map()
-
-export function loadTest() {
-  // Получаем или назначаем координаты для текущего VU
-  let coordinates = vuCoordinates.get(__VU)
-  
-  if (!coordinates) {
-    // Назначаем координаты на основе индекса VU
-    const coordIndex = (__VU - 1) % finalCoordinates.length
-    coordinates = finalCoordinates[coordIndex]
-    vuCoordinates.set(__VU, coordinates)
-    // Убираем лишний лог, чтобы не спамить
-    if (__VU <= 10) {
-      console.log(`VU ${__VU} assigned coordinates: ${coordinates.latitude}, ${coordinates.longitude}`)
-    }
-  }
-
-  const email = randomString(20)
+  const email = `${randomString(12)}_${__VU}@test.local`
   const password = randomString(20)
 
   const registerRes = http.post(
     `${BASE_URL}/api/auth/register`,
     JSON.stringify({ email, password }),
-    { headers: { 'Content-Type': 'application/json' } }
+    {
+      headers: { 'Content-Type': 'application/json' },
+      responseType: 'text',
+    }
   )
 
-  if (registerRes.status !== 200) return
+  check(registerRes, {
+    'register ok': (r) => r.status === 200,
+  })
 
-  const apiToken = registerRes.json().apiToken
+  if (registerRes.status !== 200) {
+    throw new Error(`VU ${__VU}: registration failed`)
+  }
 
-  const latitude = coordinates.latitude
-  const longitude = coordinates.longitude
+  vuState = {
+    apiToken: registerRes.json().apiToken,
+    latitude: coordinates.latitude,
+    longitude: coordinates.longitude,
+  }
+
+  return vuState
+}
+
+// =====================================
+// Main load scenario
+// =====================================
+export function loadTest() {
+  const state = initVuState()
 
   for (let tokenCycle = 0; tokenCycle < 2; tokenCycle++) {
-
     const tokenRes = http.post(
       `${BASE_URL}/api/auth/token`,
-      JSON.stringify({ apiToken }),
-      { headers: { 'Content-Type': 'application/json' } }
+      JSON.stringify({ apiToken: state.apiToken }),
+      {
+        headers: { 'Content-Type': 'application/json' },
+        responseType: 'text',
+      }
     )
+
+    check(tokenRes, {
+      'token ok': (r) => r.status === 200,
+    })
 
     if (tokenRes.status !== 200) return
 
     const accessToken = tokenRes.json().accessToken
 
-    const headers = {
+    const params = {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`
-      }
+        Authorization: `Bearer ${accessToken}`,
+      },
+      responseType: 'none', // very important for RAM
     }
 
     for (let i = 0; i < 30; i++) {
-
       const payload = JSON.stringify({
         co: Math.random(),
         no2: Math.random(),
         pm25: Math.random() * 50,
         pm10: Math.random() * 50,
-        latitude,
-        longitude
+        latitude: state.latitude,
+        longitude: state.longitude,
       })
 
       const res = http.post(
         `${BASE_URL}/api/measurement`,
         payload,
-        headers
+        params
       )
 
       check(res, {
-        'measurement ok': (r) => r.status === 200
+        'measurement ok': (r) => r.status === 200,
       })
 
       sleep(60)
     }
 
+    // refresh token every 30 mins
     sleep(1800)
   }
 }

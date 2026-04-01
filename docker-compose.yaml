@@ -36,6 +36,12 @@ services:
       - ./pgdata:/var/lib/postgresql/data
       - ./db-init:/docker-entrypoint-initdb.d
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aq_monitoring"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     networks:
       - aq-network
 
@@ -47,6 +53,8 @@ services:
     depends_on:
       redis:
         condition: service_started
+      postgres:
+        condition: service_healthy
     env_file:
       - .env
     environment:
