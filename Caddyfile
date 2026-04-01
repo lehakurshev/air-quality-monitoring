@@ -3,7 +3,7 @@ aq.ural-net.ru {
     file_server
 
     handle_path /api/swagger* {
-        reverse_proxy 172.18.0.4:8080/swagger
+        reverse_proxy 172.18.0.4:8080
     }
     
     handle /api/* {
