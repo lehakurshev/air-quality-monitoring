@@ -2,7 +2,11 @@ aq.ural-net.ru {
     root * /usr/share/caddy
     file_server
 
-    handle_path /api/* {
+    handle_path /api/swagger* {
+        reverse_proxy 172.18.0.4:8080/swagger
+    }
+    
+    handle /api/* {
         reverse_proxy 172.18.0.4:8080
     }
     
