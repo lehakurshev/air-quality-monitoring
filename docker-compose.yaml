@@ -62,6 +62,8 @@ services:
       Redis__User: ${REDIS_USER}
       Redis__Password: ${REDIS_USER_PASSWORD}
       DbConnectionString: ${DB_CONNECTION_STRING}
+    ports:
+      - "8080:8080"
     expose:
       - "8080"
     restart: unless-stopped
