@@ -4,11 +4,11 @@ aq.ural-net.ru {
 
     handle /api/swagger* {
         uri strip_prefix /api
-        reverse_proxy 172.18.0.4:8080
+        reverse_proxy backend:8080
     }
     
     handle /api/* {
-        reverse_proxy 172.18.0.4:8080
+        reverse_proxy backend:8080
     }
     
     handle {
