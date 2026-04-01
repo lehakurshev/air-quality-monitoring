@@ -3,11 +3,11 @@ aq.ural-net.ru {
     file_server
 
     handle /api/swagger* {
-        reverse_proxy aq_backend:8080/swagger
+        reverse_proxy 172.18.0.4:8080/swagger
     }
     
     handle /api/* {
-        reverse_proxy aq_backend:8080
+        reverse_proxy 172.18.0.4:8080
     }
     
     handle {
