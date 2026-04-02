@@ -25,27 +25,63 @@
             right: 20px;
             z-index: 1000;
             background: white;
-            padding: 15px;
             border-radius: 12px;
             box-shadow: 0 2px 15px rgba(0,0,0,0.2);
-            min-width: 260px;
             backdrop-filter: blur(8px);
             background: rgba(255, 255, 255, 0.95);
             border: 1px solid rgba(0,0,0,0.1);
-            max-height: 90vh;
-            overflow-y: auto;
+            min-width: 260px;
+            max-width: 280px;
         }
 
-        .control-panel h3 {
-            margin: 0 0 12px 0;
-            font-size: 16px;
+        .panel-header {
+            padding: 12px 15px;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            transition: background 0.2s;
+        }
+
+        .panel-header:hover {
+            background: rgba(0,0,0,0.02);
+        }
+
+        .panel-header h3 {
+            margin: 0;
+            font-size: 14px;
             color: #333;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .toggle-icon {
+            font-size: 14px;
+            color: #666;
+            transition: transform 0.3s;
+        }
+
+        .panel-header.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+
+        .panel-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            max-height: 500px;
+        }
+
+        .panel-content.collapsed {
+            max-height: 0;
+        }
+
+        .inner-content {
+            padding: 15px;
         }
 
         .filter-group {
-            margin-bottom: 20px;
+            margin-bottom: 0;
         }
 
         .filter-group label {
@@ -79,8 +115,11 @@
 
         .api-section {
             border-top: 1px solid #eee;
+        }
+
+        .api-section .inner-content {
             padding-top: 12px;
-            margin-top: 5px;
+            padding-bottom: 15px;
         }
 
         .api-section input {
@@ -163,6 +202,7 @@
             box-shadow: 0 1px 5px rgba(0,0,0,0.2);
             border-left: 4px solid #2c7da0;
             max-width: 250px;
+            backdrop-filter: blur(4px);
         }
 
         .legend span {
@@ -191,8 +231,9 @@
         }
 
         @media (max-width: 600px) {
-            .control-panel { width: 240px; padding: 10px; max-height: 85vh; }
+            .control-panel { min-width: 240px; max-width: 260px; }
             .filter-select { font-size: 12px; }
+            .inner-content { padding: 12px; }
         }
     </style>
 
@@ -203,28 +244,45 @@
     <div id="map"></div>
 
     <div class="control-panel">
-        <h3>📊 Фильтр данных</h3>
-        <div class="filter-group">
-            <label>🎯 Выберите метрику для цветовой индикации:</label>
-            <select id="metricSelect" class="filter-select">
-                <option value="">-- Загрузка метрик --</option>
-            </select>
-            <div class="metric-badge" id="activeMetricBadge">⚡ Выберите метрику</div>
+        <!-- Панель фильтрации (свернута по умолчанию) -->
+        <div class="filter-panel">
+            <div class="panel-header collapsed" id="filterHeader">
+                <h3>Фильтр данных</h3>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="panel-content collapsed" id="filterContent">
+                <div class="inner-content">
+                    <div class="filter-group">
+                        <label>Выберите метрику для цветовой индикации:</label>
+                        <select id="metricSelect" class="filter-select">
+                            <option value="">-- Загрузка метрик --</option>
+                        </select>
+                        <div class="metric-badge" id="activeMetricBadge">⚡ Выберите метрику</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
+        <!-- Панель API (свернута по умолчанию) -->
         <div class="api-section">
-            <h3>🔑 Регистрация / API Доступ</h3>
-            <input type="email" id="registerEmail" placeholder="Email" autocomplete="off">
-            <input type="password" id="registerPassword" placeholder="Пароль" autocomplete="off">
-            <button id="registerBtn">📝 Зарегистрироваться и получить API ключ</button>
-            <div id="apiStatus" class="status-message"></div>
-            <div id="tokenDisplay" class="token-display" style="display: none;"></div>
-            <a href="/api/swagger/index.html" target="_blank" class="doc-link">📖 Документация API</a>
+            <div class="panel-header collapsed" id="apiHeader">
+                <h3>🔑 Регистрация / API Доступ</h3>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="panel-content collapsed" id="apiContent">
+                <div class="inner-content">
+                    <input type="email" id="registerEmail" placeholder="Email" autocomplete="off">
+                    <input type="password" id="registerPassword" placeholder="Пароль" autocomplete="off">
+                    <button id="registerBtn">📝 Зарегистрироваться и получить API ключ</button>
+                    <div id="apiStatus" class="status-message"></div>
+                    <div id="tokenDisplay" class="token-display" style="display: none;"></div>
+                    <a href="/api/swagger/index.html" target="_blank" class="doc-link">📖 Документация API</a>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="legend" id="legend">
-        <strong>Цветовая шкала</strong>
         <div id="legendContent">-- Выберите метрику --</div>
         <small style="display:block; margin-top:5px;">*Цвет маркеров зависит от выбранной метрики</small>
     </div>
@@ -244,6 +302,22 @@
         
         // Динамические пороги для цветов (автоматически вычисляются на основе данных)
         let colorThresholds = {};
+
+        // --- Функции для сворачивания/разворачивания панелей ---
+        function togglePanel(header, content) {
+            header.classList.toggle('collapsed');
+            content.classList.toggle('collapsed');
+        }
+
+        // Настройка сворачивания для панели фильтров
+        const filterHeader = document.getElementById('filterHeader');
+        const filterContent = document.getElementById('filterContent');
+        filterHeader.addEventListener('click', () => togglePanel(filterHeader, filterContent));
+
+        // Настройка сворачивания для панели API
+        const apiHeader = document.getElementById('apiHeader');
+        const apiContent = document.getElementById('apiContent');
+        apiHeader.addEventListener('click', () => togglePanel(apiHeader, apiContent));
 
         // --- Автоматическое вычисление порогов для любой метрики (квантили) ---
         function calculateThresholds(values) {
@@ -361,6 +435,7 @@
         function updateLegend(metric, thresholds) {
             const legendDiv = document.getElementById('legendContent');
             legendDiv.innerHTML = `
+                <strong>Цветовая шкала</strong><br>
                 <div class="legend-item"><span style="background: #22c55e;"></span> ≤ ${thresholds.low.toFixed(2)} (низкий)</div>
                 <div class="legend-item"><span style="background: #eab308;"></span> ≤ ${thresholds.medium.toFixed(2)} (средний)</div>
                 <div class="legend-item"><span style="background: #f97316;"></span> ≤ ${thresholds.high.toFixed(2)} (высокий)</div>
@@ -483,33 +558,26 @@
         // --- Регистрация и получение API ключа (согласно документации) ---
         async function registerAndGetToken(email, password) {
             try {
-                // Шаг 1: Регистрация пользователя
+                // Регистрация пользователя
                 showStatus('Регистрация пользователя...', 'info');
-                const tokenResponse = await fetch('/api/auth/register', {
+                const registerResponse = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: email, password: password })
                 });
                 
-                if (!tokenResponse.ok) {
-                    if (tokenResponse.status === 409) {
+                if (!registerResponse.ok) {
+                    if (registerResponse.status === 409) {
                         showStatus('Пользователь уже существует. Пытаемся получить токен...', 'info');
                     } else {
-                        const error = await tokenResponse.text();
-                        showStatus(`Ошибка регистрации: ${tokenResponse.status}`, 'error');
+                        showStatus(`Ошибка регистрации: ${registerResponse.status}`, 'error');
                         return null;
                     }
                 } else {
                     showStatus('✅ Регистрация успешна! Получаем API ключ...', 'success');
                 }
                 
-                if (!tokenResponse.ok) {
-                    const errorText = await tokenResponse.text();
-                    showStatus(`Ошибка получения токена: ${tokenResponse.status}`, 'error');
-                    return null;
-                }
-                
-                const tokenData = await tokenResponse.json();
+                const tokenData = await registerResponse.json();
                 console.log('Ответ от /api/auth/register:', tokenData);
                 
                 // Извлекаем apiToken из ответа (согласно документации)
@@ -561,7 +629,6 @@
             
             if (newToken) {
                 setApiToken(newToken);
-                // Очищаем поля пароля (email оставляем для удобства)
                 document.getElementById('registerPassword').value = '';
                 await loadData();
             } else {
@@ -577,7 +644,7 @@
             const newMetric = e.target.value;
             if (newMetric && availableMetrics.includes(newMetric)) {
                 currentMetric = newMetric;
-                metricBadge.innerHTML = `🎨 ${currentMetric.toUpperCase()}`;
+                metricBadge.innerHTML = `${currentMetric.toUpperCase()}`;
                 if (currentData.length) {
                     renderMarkers(currentData, currentMetric);
                 }
