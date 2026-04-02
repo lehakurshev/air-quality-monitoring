@@ -28,7 +28,7 @@
             padding: 15px;
             border-radius: 12px;
             box-shadow: 0 2px 15px rgba(0,0,0,0.2);
-            min-width: 240px;
+            min-width: 260px;
             backdrop-filter: blur(8px);
             background: rgba(255, 255, 255, 0.95);
             border: 1px solid rgba(0,0,0,0.1);
@@ -86,7 +86,7 @@
         .api-section input {
             width: 100%;
             padding: 8px;
-            margin: 8px 0;
+            margin: 5px 0;
             border-radius: 6px;
             border: 1px solid #ccc;
             box-sizing: border-box;
@@ -96,6 +96,7 @@
         .api-section button {
             width: 100%;
             padding: 8px;
+            margin-top: 8px;
             background: #2c7da0;
             color: white;
             border: none;
@@ -108,6 +109,10 @@
 
         .api-section button:hover {
             background: #1f5e7a;
+        }
+
+        .api-section button:active {
+            transform: scale(0.98);
         }
 
         .status-message {
@@ -126,6 +131,11 @@
         .status-error {
             background: #f8d7da;
             color: #721c24;
+        }
+
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
         }
 
         .doc-link {
@@ -168,8 +178,20 @@
             margin: 3px 0;
         }
 
+        .token-display {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 6px;
+            margin: 8px 0;
+            font-size: 10px;
+            word-break: break-all;
+            font-family: monospace;
+            text-align: center;
+        }
+
         @media (max-width: 600px) {
-            .control-panel { width: 220px; padding: 10px; max-height: 85vh; }
+            .control-panel { width: 240px; padding: 10px; max-height: 85vh; }
             .filter-select { font-size: 12px; }
         }
     </style>
@@ -191,16 +213,18 @@
         </div>
 
         <div class="api-section">
-            <h3>🔑 API Доступ</h3>
-            <input type="text" id="apiTokenInput" placeholder="Ваш API ключ" autocomplete="off">
-            <button id="getTokenBtn">📝 Получить API ключ</button>
+            <h3>🔑 Регистрация / API Доступ</h3>
+            <input type="email" id="registerEmail" placeholder="Email" autocomplete="off">
+            <input type="password" id="registerPassword" placeholder="Пароль" autocomplete="off">
+            <button id="registerBtn">📝 Зарегистрироваться и получить API ключ</button>
             <div id="apiStatus" class="status-message"></div>
+            <div id="tokenDisplay" class="token-display" style="display: none;"></div>
             <a href="/api/swagger/index.html" target="_blank" class="doc-link">📖 Документация API</a>
         </div>
     </div>
 
     <div class="legend" id="legend">
-        <strong>🎨 Цветовая шкала</strong>
+        <strong>Цветовая шкала</strong>
         <div id="legendContent">-- Выберите метрику --</div>
         <small style="display:block; margin-top:5px;">*Цвет маркеров зависит от выбранной метрики</small>
     </div>
@@ -229,9 +253,9 @@
             const len = sorted.length;
             
             return {
-                low: sorted[Math.floor(len * 0.25)] || 0,      // 25-й перцентиль
-                medium: sorted[Math.floor(len * 0.5)] || 0,    // Медиана (50-й)
-                high: sorted[Math.floor(len * 0.75)] || 0,     // 75-й перцентиль
+                low: sorted[Math.floor(len * 0.25)] || 0,
+                medium: sorted[Math.floor(len * 0.5)] || 0,
+                high: sorted[Math.floor(len * 0.75)] || 0,
                 min: sorted[0],
                 max: sorted[len - 1]
             };
@@ -244,10 +268,10 @@
             const thresholds = colorThresholds[metricKey];
             if (!thresholds) return "#888888";
             
-            if (value <= thresholds.low) return "#22c55e";      // зеленый
-            if (value <= thresholds.medium) return "#eab308";   // желтый
-            if (value <= thresholds.high) return "#f97316";     // оранжевый
-            return "#ef4444";                                    // красный
+            if (value <= thresholds.low) return "#22c55e";
+            if (value <= thresholds.medium) return "#eab308";
+            if (value <= thresholds.high) return "#f97316";
+            return "#ef4444";
         }
 
         // --- Универсальное создание попапа: отображаются ВСЕ поля (кроме координат и id) ---
@@ -257,7 +281,6 @@
             popupContent += '<strong>📊 Данные измерения:</strong><br><hr style="margin: 5px 0;">';
             
             let hasMetrics = false;
-            let otherFields = [];
             
             for (let [key, value] of Object.entries(pointData)) {
                 if (!excludeKeys.includes(key) && value !== undefined && value !== null) {
@@ -265,8 +288,6 @@
                     const formattedValue = typeof value === 'number' ? value.toFixed(2) : value;
                     popupContent += `<b>${prettyKey}:</b> ${formattedValue}<br>`;
                     hasMetrics = true;
-                } else if (!excludeKeys.includes(key) && key !== 'latitude' && key !== 'longitude') {
-                    otherFields.push(key);
                 }
             }
             
@@ -312,15 +333,13 @@
                 select.appendChild(option);
             });
             
-            // Если текущая метрика все еще валидна, оставляем ее
             if (currentMetric && availableMetrics.includes(currentMetric)) {
                 select.value = currentMetric;
             } else if (availableMetrics.length > 0 && !currentMetric) {
-                // Автоматически выбираем первую метрику
                 currentMetric = availableMetrics[0];
                 select.value = currentMetric;
                 updateColorThresholds(dataPoints, currentMetric);
-                document.getElementById('activeMetricBadge').innerHTML = `🎨 Цвет зависит от: ${currentMetric.toUpperCase()}`;
+                document.getElementById('activeMetricBadge').innerHTML = `🎨 ${currentMetric.toUpperCase()}`;
             }
         }
         
@@ -335,7 +354,6 @@
             const thresholds = calculateThresholds(values);
             colorThresholds[metric] = thresholds;
             
-            // Обновляем легенду
             updateLegend(metric, thresholds);
         }
         
@@ -360,7 +378,6 @@
             
             if (!dataPoints || dataPoints.length === 0 || !metric) return;
             
-            // Обновляем пороги для текущей метрики
             updateColorThresholds(dataPoints, metric);
             
             dataPoints.forEach(point => {
@@ -391,12 +408,14 @@
             currentApiToken = token;
             if (token) {
                 localStorage.setItem('air_api_token', token);
-                document.getElementById('apiTokenInput').value = token;
-                showStatus('API ключ сохранен', 'success');
+                const tokenDisplay = document.getElementById('tokenDisplay');
+                tokenDisplay.style.display = 'block';
+                tokenDisplay.innerHTML = `✅ Ваш API ключ:<br><strong>${token}</strong><br><small>Сохранен в браузере</small>`;
+                showStatus('API ключ успешно сохранен!', 'success');
             } else {
                 localStorage.removeItem('air_api_token');
-                document.getElementById('apiTokenInput').value = '';
-                showStatus('API ключ удален', 'success');
+                document.getElementById('tokenDisplay').style.display = 'none';
+                showStatus('API ключ удален', 'info');
             }
             loadData();
         }
@@ -410,7 +429,7 @@
                     statusDiv.textContent = '';
                     statusDiv.className = 'status-message';
                 }
-            }, 4000);
+            }, 5000);
         }
         
         async function loadData() {
@@ -427,7 +446,7 @@
                 
                 if (!response.ok) {
                     if (response.status === 401) {
-                        showStatus('❌ Не авторизован. Проверьте API ключ', 'error');
+                        showStatus('❌ Не авторизован. Получите API ключ через регистрацию', 'error');
                     } else {
                         showStatus(`Ошибка загрузки: ${response.status}`, 'error');
                     }
@@ -448,7 +467,7 @@
                     } else if (availableMetrics.length > 0) {
                         currentMetric = availableMetrics[0];
                         document.getElementById('metricSelect').value = currentMetric;
-                        document.getElementById('activeMetricBadge').innerHTML = `🎨 Цвет зависит от: ${currentMetric.toUpperCase()}`;
+                        document.getElementById('activeMetricBadge').innerHTML = `${currentMetric.toUpperCase()}`;
                         renderMarkers(currentData, currentMetric);
                     }
                 } else {
@@ -461,86 +480,107 @@
             }
         }
         
-        // --- Получение API ключа (универсальный метод) ---
-        async function obtainApiKey() {
-            const tempEmail = `user_${Date.now()}@example.com`;
-            const tempPassword = 'Pass123!';
-            
+        // --- Регистрация и получение API ключа (согласно документации) ---
+        async function registerAndGetToken(email, password) {
             try {
-                showStatus('Регистрация...', 'success');
+                // Шаг 1: Регистрация пользователя
+                showStatus('Регистрация пользователя...', 'info');
                 const registerResponse = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: tempEmail, password: tempPassword })
+                    body: JSON.stringify({ email: email, password: password })
                 });
                 
-                if (!registerResponse.ok && registerResponse.status !== 409) {
-                    showStatus(`Ошибка регистрации: ${registerResponse.status}`, 'error');
-                    return null;
+                if (!registerResponse.ok) {
+                    if (registerResponse.status === 409) {
+                        showStatus('Пользователь уже существует. Пытаемся получить токен...', 'info');
+                    } else {
+                        const error = await registerResponse.text();
+                        showStatus(`Ошибка регистрации: ${registerResponse.status}`, 'error');
+                        return null;
+                    }
+                } else {
+                    showStatus('✅ Регистрация успешна! Получаем API ключ...', 'success');
                 }
                 
-                showStatus('Получение токена...', 'success');
+                // Шаг 2: Получение API токена через /api/auth/token
+                // Согласно документации, отправляем email и пароль, получаем { "apiToken": "..." }
                 const tokenResponse = await fetch('/api/auth/token', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        email: tempEmail, 
-                        password: tempPassword
+                        email: email, 
+                        password: password 
                     })
                 });
                 
                 if (!tokenResponse.ok) {
-                    const fallbackResp = await fetch('/api/auth/token', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ apiToken: tempPassword })
-                    });
-                    if (fallbackResp.ok) {
-                        const tokenData = await fallbackResp.json();
-                        const bearerToken = tokenData.accessToken || tokenData.token || tokenData.apiToken;
-                        if (bearerToken) return bearerToken;
-                    }
-                    showStatus('Не удалось получить токен', 'error');
+                    const errorText = await tokenResponse.text();
+                    showStatus(`Ошибка получения токена: ${tokenResponse.status}`, 'error');
                     return null;
                 }
                 
                 const tokenData = await tokenResponse.json();
-                const bearerToken = tokenData.accessToken || tokenData.token || tokenData.apiToken;
-                if (bearerToken) {
-                    showStatus('✅ API ключ успешно получен!', 'success');
-                    return bearerToken;
+                console.log('Ответ от /api/auth/token:', tokenData);
+                
+                // Извлекаем apiToken из ответа (согласно документации)
+                const apiToken = tokenData.apiToken || tokenData.token || tokenData.accessToken;
+                
+                if (apiToken) {
+                    showStatus('🎉 API ключ успешно получен!', 'success');
+                    return apiToken;
                 } else {
-                    showStatus('Ответ не содержит токен', 'error');
+                    showStatus('Ответ не содержит apiToken. Проверьте формат ответа сервера', 'error');
+                    console.error('Неожиданный формат ответа:', tokenData);
                     return null;
                 }
             } catch (err) {
                 console.error('Ошибка:', err);
-                showStatus('Ошибка соединения', 'error');
+                showStatus('Ошибка соединения с сервером', 'error');
                 return null;
             }
         }
         
-        // --- Обработчики событий ---
-        document.getElementById('getTokenBtn').addEventListener('click', async () => {
-            const newToken = await obtainApiKey();
+        // --- Обработчик кнопки регистрации ---
+        document.getElementById('registerBtn').addEventListener('click', async () => {
+            const email = document.getElementById('registerEmail').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            
+            // Валидация
+            if (!email) {
+                showStatus('Введите email', 'error');
+                return;
+            }
+            
+            if (!email.includes('@') || !email.includes('.')) {
+                showStatus('Введите корректный email', 'error');
+                return;
+            }
+            
+            if (!password) {
+                showStatus('Введите пароль', 'error');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showStatus('Пароль должен содержать минимум 6 символов', 'error');
+                return;
+            }
+            
+            // Получаем токен через регистрацию
+            const newToken = await registerAndGetToken(email, password);
+            
             if (newToken) {
                 setApiToken(newToken);
+                // Очищаем поля пароля (email оставляем для удобства)
+                document.getElementById('registerPassword').value = '';
                 await loadData();
             } else {
-                showStatus('Не удалось получить ключ. Введите вручную', 'error');
+                showStatus('Не удалось получить API ключ. Проверьте данные или попробуйте позже', 'error');
             }
         });
         
-        const tokenInput = document.getElementById('apiTokenInput');
-        tokenInput.addEventListener('change', () => {
-            const newToken = tokenInput.value.trim();
-            if (newToken) {
-                setApiToken(newToken);
-            } else {
-                setApiToken('');
-            }
-        });
-        
+        // --- Обработчик смены метрики ---
         const metricSelect = document.getElementById('metricSelect');
         const metricBadge = document.getElementById('activeMetricBadge');
         
@@ -548,20 +588,34 @@
             const newMetric = e.target.value;
             if (newMetric && availableMetrics.includes(newMetric)) {
                 currentMetric = newMetric;
-                metricBadge.innerHTML = `🎨 Цвет зависит от: ${currentMetric.toUpperCase()}`;
+                metricBadge.innerHTML = `🎨 ${currentMetric.toUpperCase()}`;
                 if (currentData.length) {
                     renderMarkers(currentData, currentMetric);
                 }
             }
         });
         
-        // Инициализация
+        // Инициализация: проверяем сохраненный токен
         if (currentApiToken) {
-            document.getElementById('apiTokenInput').value = currentApiToken;
+            document.getElementById('tokenDisplay').style.display = 'block';
+            document.getElementById('tokenDisplay').innerHTML = `✅ Ваш API ключ:<br><strong>${currentApiToken}</strong><br><small>Сохранен в браузере</small>`;
         }
         
+        // Загружаем данные при старте
         loadData();
+        
+        // Автообновление каждые 10 секунд
         setInterval(() => loadData(), 10000);
+        
+        // Добавляем возможность отправить форму по Enter
+        const inputs = ['registerEmail', 'registerPassword'];
+        inputs.forEach(id => {
+            document.getElementById(id).addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('registerBtn').click();
+                }
+            });
+        });
     </script>
 </body>
 
