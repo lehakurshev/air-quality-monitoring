@@ -491,28 +491,17 @@
                     body: JSON.stringify({ email: email, password: password })
                 });
                 
-                if (!registerResponse.ok) {
-                    if (registerResponse.status === 409) {
+                if (!tokenResponse.ok) {
+                    if (tokenResponse.status === 409) {
                         showStatus('Пользователь уже существует. Пытаемся получить токен...', 'info');
                     } else {
-                        const error = await registerResponse.text();
-                        showStatus(`Ошибка регистрации: ${registerResponse.status}`, 'error');
+                        const error = await tokenResponse.text();
+                        showStatus(`Ошибка регистрации: ${tokenResponse.status}`, 'error');
                         return null;
                     }
                 } else {
                     showStatus('✅ Регистрация успешна! Получаем API ключ...', 'success');
                 }
-                
-                // Шаг 2: Получение API токена через /api/auth/token
-                // Согласно документации, отправляем email и пароль, получаем { "apiToken": "..." }
-                const tokenResponse = await fetch('/api/auth/token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        email: email, 
-                        password: password 
-                    })
-                });
                 
                 if (!tokenResponse.ok) {
                     const errorText = await tokenResponse.text();
@@ -521,7 +510,7 @@
                 }
                 
                 const tokenData = await tokenResponse.json();
-                console.log('Ответ от /api/auth/token:', tokenData);
+                console.log('Ответ от /api/auth/register:', tokenData);
                 
                 // Извлекаем apiToken из ответа (согласно документации)
                 const apiToken = tokenData.apiToken || tokenData.token || tokenData.accessToken;
