@@ -14,6 +14,10 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
+        .leaflet-control-attribution {
+            display: none;
+        }
+
         #map {
             height: 100vh;
             width: 100%;
@@ -26,10 +30,10 @@
             z-index: 1000;
             background: white;
             border-radius: 12px;
-            box-shadow: 0 2px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.2);
             backdrop-filter: blur(8px);
             background: rgba(255, 255, 255, 0.95);
-            border: 1px solid rgba(0,0,0,0.1);
+            border: 1px solid rgba(0, 0, 0, 0.1);
             min-width: 260px;
             max-width: 280px;
         }
@@ -46,7 +50,7 @@
         }
 
         .panel-header:hover {
-            background: rgba(0,0,0,0.02);
+            background: rgba(0, 0, 0, 0.02);
         }
 
         .panel-header h3 {
@@ -194,12 +198,12 @@
             position: absolute;
             bottom: 20px;
             right: 20px;
-            background: rgba(255,255,255,0.9);
+            background: rgba(255, 255, 255, 0.9);
             padding: 10px 15px;
             border-radius: 8px;
             font-size: 12px;
             z-index: 1000;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
             border-left: 4px solid #2c7da0;
             max-width: 250px;
             backdrop-filter: blur(4px);
@@ -231,9 +235,18 @@
         }
 
         @media (max-width: 600px) {
-            .control-panel { min-width: 240px; max-width: 260px; }
-            .filter-select { font-size: 12px; }
-            .inner-content { padding: 12px; }
+            .control-panel {
+                min-width: 240px;
+                max-width: 260px;
+            }
+
+            .filter-select {
+                font-size: 12px;
+            }
+
+            .inner-content {
+                padding: 12px;
+            }
         }
     </style>
 
@@ -299,7 +312,7 @@
         let currentData = [];
         let currentMetric = null;
         let availableMetrics = [];
-        
+
         // Динамические пороги для цветов (автоматически вычисляются на основе данных)
         let colorThresholds = {};
 
@@ -322,10 +335,10 @@
         // --- Автоматическое вычисление порогов для любой метрики (квантили) ---
         function calculateThresholds(values) {
             if (!values || values.length === 0) return { low: 0, medium: 0, high: 0 };
-            
+
             const sorted = [...values].sort((a, b) => a - b);
             const len = sorted.length;
-            
+
             return {
                 low: sorted[Math.floor(len * 0.25)] || 0,
                 medium: sorted[Math.floor(len * 0.5)] || 0,
@@ -338,10 +351,10 @@
         // --- Получение цвета на основе динамических порогов ---
         function getColorByMetricDynamic(value, metricKey) {
             if (value === undefined || value === null) return "#999999";
-            
+
             const thresholds = colorThresholds[metricKey];
             if (!thresholds) return "#888888";
-            
+
             if (value <= thresholds.low) return "#22c55e";
             if (value <= thresholds.medium) return "#eab308";
             if (value <= thresholds.high) return "#f97316";
@@ -353,9 +366,9 @@
             const excludeKeys = ['latitude', 'longitude', 'id', '_id'];
             let popupContent = '<div style="font-family: monospace; font-size: 13px; min-width: 180px;">';
             popupContent += '<strong>📊 Данные измерения:</strong><br><hr style="margin: 5px 0;">';
-            
+
             let hasMetrics = false;
-            
+
             for (let [key, value] of Object.entries(pointData)) {
                 if (!excludeKeys.includes(key) && value !== undefined && value !== null) {
                     const prettyKey = key.charAt(0).toUpperCase() + key.slice(1);
@@ -364,11 +377,11 @@
                     hasMetrics = true;
                 }
             }
-            
+
             if (!hasMetrics) {
                 popupContent += 'Нет данных о качестве воздуха';
             }
-            
+
             popupContent += '</div>';
             return popupContent;
         }
@@ -376,37 +389,37 @@
         // --- Обновление выпадающего списка метрик на основе полученных данных ---
         function updateMetricSelector(dataPoints) {
             if (!dataPoints || dataPoints.length === 0) return;
-            
+
             // Собираем все числовые поля (кроме координат и id)
             const metricSet = new Set();
-            
+
             dataPoints.forEach(point => {
                 Object.keys(point).forEach(key => {
-                    if (!['latitude', 'longitude', 'id', '_id'].includes(key) && 
+                    if (!['latitude', 'longitude', 'id', '_id'].includes(key) &&
                         typeof point[key] === 'number') {
                         metricSet.add(key);
                     }
                 });
             });
-            
+
             availableMetrics = Array.from(metricSet);
-            
+
             const select = document.getElementById('metricSelect');
             select.innerHTML = '<option value="">-- Выберите метрику --</option>';
-            
+
             if (availableMetrics.length === 0) {
                 select.innerHTML = '<option value="">-- Нет доступных метрик --</option>';
                 document.getElementById('activeMetricBadge').innerHTML = '❌ Нет числовых метрик в данных';
                 return;
             }
-            
+
             availableMetrics.forEach(metric => {
                 const option = document.createElement('option');
                 option.value = metric;
                 option.textContent = `${metric.toUpperCase()}${metric === currentMetric ? ' (активна)' : ''}`;
                 select.appendChild(option);
             });
-            
+
             if (currentMetric && availableMetrics.includes(currentMetric)) {
                 select.value = currentMetric;
             } else if (availableMetrics.length > 0 && !currentMetric) {
@@ -416,21 +429,21 @@
                 document.getElementById('activeMetricBadge').innerHTML = `🎨 ${currentMetric.toUpperCase()}`;
             }
         }
-        
+
         // --- Обновление порогов цвета на основе данных для выбранной метрики ---
         function updateColorThresholds(dataPoints, metric) {
             const values = dataPoints
                 .map(point => point[metric])
                 .filter(v => v !== undefined && v !== null && typeof v === 'number');
-            
+
             if (values.length === 0) return;
-            
+
             const thresholds = calculateThresholds(values);
             colorThresholds[metric] = thresholds;
-            
+
             updateLegend(metric, thresholds);
         }
-        
+
         // --- Обновление легенды ---
         function updateLegend(metric, thresholds) {
             const legendDiv = document.getElementById('legendContent');
@@ -450,15 +463,15 @@
         function renderMarkers(dataPoints, metric) {
             markers.forEach(m => map.removeLayer(m));
             markers = [];
-            
+
             if (!dataPoints || dataPoints.length === 0 || !metric) return;
-            
+
             updateColorThresholds(dataPoints, metric);
-            
+
             dataPoints.forEach(point => {
                 let metricValue = point[metric];
                 let markerColor = getColorByMetricDynamic(metricValue, metric);
-                
+
                 const marker = L.circleMarker([point.latitude, point.longitude], {
                     radius: 8,
                     color: markerColor,
@@ -467,10 +480,10 @@
                     fillOpacity: 0.7,
                     fillColor: markerColor
                 });
-                
+
                 const popupHtml = buildDynamicPopup(point);
                 marker.bindPopup(popupHtml);
-                
+
                 marker.addTo(map);
                 markers.push(marker);
             });
@@ -478,7 +491,7 @@
 
         // --- Загрузка данных с API ---
         let currentApiToken = localStorage.getItem('air_api_token') || '';
-        
+
         function setApiToken(token) {
             currentApiToken = token;
             if (token) {
@@ -494,7 +507,7 @@
             }
             loadData();
         }
-        
+
         function showStatus(message, type) {
             const statusDiv = document.getElementById('apiStatus');
             statusDiv.textContent = message;
@@ -506,19 +519,19 @@
                 }
             }, 5000);
         }
-        
+
         async function loadData() {
             try {
                 const headers = {};
                 if (currentApiToken) {
                     headers['Authorization'] = `Bearer ${currentApiToken}`;
                 }
-                
+
                 const response = await fetch('/api/measurement', {
                     method: 'GET',
                     headers: headers
                 });
-                
+
                 if (!response.ok) {
                     if (response.status === 401) {
                         showStatus('❌ Не авторизован. Получите API ключ через регистрацию', 'error');
@@ -527,16 +540,16 @@
                     }
                     return;
                 }
-                
+
                 const data = await response.json();
                 let measurements = Array.isArray(data) ? data : (data.items || data.results || []);
                 if (!Array.isArray(measurements)) measurements = [];
-                
+
                 currentData = measurements;
-                
+
                 if (measurements.length > 0) {
                     updateMetricSelector(measurements);
-                    
+
                     if (currentMetric && availableMetrics.includes(currentMetric)) {
                         renderMarkers(currentData, currentMetric);
                     } else if (availableMetrics.length > 0) {
@@ -554,7 +567,7 @@
                 showStatus('Ошибка сети или сервера', 'error');
             }
         }
-        
+
         // --- Регистрация и получение API ключа (согласно документации) ---
         async function registerAndGetToken(email, password) {
             try {
@@ -565,7 +578,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: email, password: password })
                 });
-                
+
                 if (!registerResponse.ok) {
                     if (registerResponse.status === 409) {
                         showStatus('Пользователь уже существует. Пытаемся получить токен...', 'info');
@@ -576,13 +589,13 @@
                 } else {
                     showStatus('✅ Регистрация успешна! Получаем API ключ...', 'success');
                 }
-                
+
                 const tokenData = await registerResponse.json();
                 console.log('Ответ от /api/auth/register:', tokenData);
-                
+
                 // Извлекаем apiToken из ответа (согласно документации)
                 const apiToken = tokenData.apiToken || tokenData.token || tokenData.accessToken;
-                
+
                 if (apiToken) {
                     showStatus('🎉 API ключ успешно получен!', 'success');
                     return apiToken;
@@ -597,36 +610,36 @@
                 return null;
             }
         }
-        
+
         // --- Обработчик кнопки регистрации ---
         document.getElementById('registerBtn').addEventListener('click', async () => {
             const email = document.getElementById('registerEmail').value.trim();
             const password = document.getElementById('registerPassword').value;
-            
+
             // Валидация
             if (!email) {
                 showStatus('Введите email', 'error');
                 return;
             }
-            
+
             if (!email.includes('@') || !email.includes('.')) {
                 showStatus('Введите корректный email', 'error');
                 return;
             }
-            
+
             if (!password) {
                 showStatus('Введите пароль', 'error');
                 return;
             }
-            
+
             if (password.length < 6) {
                 showStatus('Пароль должен содержать минимум 6 символов', 'error');
                 return;
             }
-            
+
             // Получаем токен через регистрацию
             const newToken = await registerAndGetToken(email, password);
-            
+
             if (newToken) {
                 setApiToken(newToken);
                 document.getElementById('registerPassword').value = '';
@@ -635,11 +648,11 @@
                 showStatus('Не удалось получить API ключ. Проверьте данные или попробуйте позже', 'error');
             }
         });
-        
+
         // --- Обработчик смены метрики ---
         const metricSelect = document.getElementById('metricSelect');
         const metricBadge = document.getElementById('activeMetricBadge');
-        
+
         metricSelect.addEventListener('change', (e) => {
             const newMetric = e.target.value;
             if (newMetric && availableMetrics.includes(newMetric)) {
@@ -650,19 +663,19 @@
                 }
             }
         });
-        
+
         // Инициализация: проверяем сохраненный токен
         if (currentApiToken) {
             document.getElementById('tokenDisplay').style.display = 'block';
             document.getElementById('tokenDisplay').innerHTML = `✅ Ваш API ключ:<br><strong>${currentApiToken}</strong><br><small>Сохранен в браузере</small>`;
         }
-        
+
         // Загружаем данные при старте
         loadData();
-        
+
         // Автообновление каждые 10 секунд
         setInterval(() => loadData(), 10000);
-        
+
         // Добавляем возможность отправить форму по Enter
         const inputs = ['registerEmail', 'registerPassword'];
         inputs.forEach(id => {
