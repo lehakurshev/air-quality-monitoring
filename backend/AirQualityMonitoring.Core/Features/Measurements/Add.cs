@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace AirQualityMonitoring.Core.Features.Measurements;
 
-// Добавляем модель запроса
 // Обновляем модель запроса
 public record MeasurementRequest(
     double Co,

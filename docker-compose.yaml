@@ -87,14 +87,24 @@ services:
     networks:
       - aq-network
 
-  k6:
+  k6-tester:
     image: grafana/k6:latest
-    container_name: aq_k6
+    container_name: aq_k6_tester
     volumes:
-      - ./k6:/scripts
+      - ./k6-tester:/scripts
     depends_on:
       - backend
     command: run /scripts/k6-script.js
+    networks:
+      - aq-network
+
+  sensor-community-daemon:
+    image: grafana/k6:latest
+    container_name: aq_sensor_daemon
+    volumes:
+      - ./k6-demon:/scripts
+    command: run /scripts/sensor-community-daemon.js
+    restart: unless-stopped
     networks:
       - aq-network
 
