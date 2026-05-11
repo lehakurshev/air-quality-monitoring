@@ -3,13 +3,12 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
-const char* ssid = "*****"; //
-const char* password = "*****"; //
+const char* ssid = "*";
+const char* password = "*";
+String email = "*";
+String passw = "*";
 
 const char* baseUrl = "https://aq.ural-net.ru";
-
-String email = "*****"; //
-String passw = "*****"; //
 
 String apiToken = "";
 String bearerToken = "";
@@ -18,6 +17,7 @@ unsigned long lastTokenTime = 0;
 unsigned long lastSendTime = 0;
 unsigned long lastStatusTime = 0;
 
+// интервалы
 const unsigned long tokenInterval = 30UL * 60UL * 1000UL; // 30 минут
 const unsigned long sendInterval  = 60UL * 1000UL;        // 1 минута
 const unsigned long statusInterval = 10UL * 1000UL;       // 10 секунд
@@ -96,8 +96,6 @@ void getToken() {
   https.addHeader("accept", "*/*");
   https.addHeader("Content-Type", "application/json");
 
-  https.addHeader("Authorization", "Bearer eacda047-73f8-4878-a0fa-2cd3bcb305ab");
-
   StaticJsonDocument<200> doc;
   doc["apiToken"] = apiToken;
 
@@ -143,6 +141,7 @@ void sendMeasurement() {
   String url = String(baseUrl) + "/api/measurement";
   https.begin(client, url);
 
+  https.addHeader("accept", "application/json");
   https.addHeader("Content-Type", "application/json");
   https.addHeader("Authorization", "Bearer " + bearerToken);
 
