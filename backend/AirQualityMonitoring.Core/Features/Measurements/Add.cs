@@ -10,14 +10,13 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace AirQualityMonitoring.Core.Features.Measurements;
 
-// Обновляем модель запроса
 public record MeasurementRequest(
-    double Co,
-    double No2,
-    double Pm25,
-    double Pm10,
-    double Latitude,
-    double Longitude
+    double? Co,
+    double? No2,
+    double? Pm25,
+    double? Pm10,
+    double? Latitude,
+    double? Longitude
 );
 
 public sealed class AddEndpoint : IEndpoint
@@ -27,7 +26,7 @@ public sealed class AddEndpoint : IEndpoint
         builder.MapPost(
                 "/measurement",
                 async (
-                    [FromBody] MeasurementRequest request, // Добавляем параметр
+                    [FromBody] MeasurementRequest request,
                     HttpContext context,
                     [FromServices] AddHandler handler,
                     CancellationToken cancellationToken) =>
@@ -59,13 +58,11 @@ public sealed class AddHandler
 
     public async Task Handle(HttpContext context, MeasurementRequest request, CancellationToken cancellationToken)
     {
-        // 1️⃣ Проверяем access token
         var userId = await _tokenValidator.ValidateAsync(context);
 
         if (userId == null)
             throw new UnauthorizedAccessException("Invalid token");
 
-        // 2️⃣ Создаем JSON из запроса
         var pollutants = JsonDocument.Parse(JsonSerializer.Serialize(new
         {
             co = request.Co,
@@ -84,7 +81,6 @@ public sealed class AddHandler
             Pollutants = pollutants
         };
 
-        // 3️⃣ сохраняем в Postgres
         using var dbConnection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         await dbConnection.ExecuteAsync(
@@ -94,7 +90,6 @@ public sealed class AddHandler
         """,
         measurement);
 
-        // 4️⃣ сохраняем последнее измерение в Redis
         var key = $"air:user:{measurement.UserId}";
         var json = JsonSerializer.Serialize(new
         {
