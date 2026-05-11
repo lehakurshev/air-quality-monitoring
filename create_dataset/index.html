@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Интерактивная карта: 20 случайных точек по клику + экспорт CSV</title>
+    <!-- Leaflet CSS и JS (библиотека для карт) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #2b3b4e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .map-container {
+            background: #1e2a36;
+            border-radius: 20px;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.3);
+            overflow: hidden;
+            width: 1200px;
+            max-width: 95vw;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #map {
+            height: 65vh;
+            min-height: 450px;
+            width: 100%;
+            background: #c8e0e0;
+            z-index: 1;
+        }
+
+        .controls {
+            padding: 18px 24px;
+            background: #f8fafc;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            border-top: 1px solid #cbd5e1;
+        }
+
+        .info-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: baseline;
+            font-size: 0.9rem;
+            color: #0f172a;
+            background: #eef2ff;
+            padding: 8px 16px;
+            border-radius: 40px;
+        }
+
+        .info-panel span {
+            font-weight: bold;
+            color: #1e3a8a;
+        }
+
+        button {
+            background: #2c5f8a;
+            border: none;
+            color: white;
+            font-weight: 600;
+            padding: 10px 24px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: #1e405e;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .clear-btn {
+            background: #9e2d2f;
+        }
+        .clear-btn:hover {
+            background: #731f21;
+        }
+
+        .export-btn {
+            background: #2b6e4e;
+        }
+        .export-btn:hover {
+            background: #1f523a;
+        }
+
+        .coord-hint {
+            font-family: monospace;
+            font-size: 0.8rem;
+            background: #e9ecef;
+            padding: 4px 12px;
+            border-radius: 24px;
+            color: #0b3b5f;
+        }
+
+        .badge-cluster {
+            background: #1e4663;
+            color: white;
+            border-radius: 30px;
+            padding: 4px 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            padding: 8px;
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        @media (max-width: 700px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .info-panel {
+                justify-content: center;
+                text-align: center;
+            }
+            button {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="map-container">
+    <div id="map"></div>
+    <div class="controls">
+        <div class="info-panel">
+            📍 Всего точек на карте: <span id="pointCount">0</span>
+            <div class="coord-hint">
+                🖱️ Клик → +20 случайных точек в радиусе 500м
+            </div>
+            <div class="badge-cluster">
+                🎲 рандом ±50м от клика
+            </div>
+        </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button id="exportCsvBtn" class="export-btn">📎 Экспорт в CSV</button>
+            <button id="clearAllBtn" class="clear-btn">🗑 Очистить все точки</button>
+        </div>
+    </div>
+    <footer>
+        ⚡ Каждый клик генерирует 20 случайных точек в радиусе ~500 метров. Формат экспорта: longitude_metair,latitude_metair (WGS84)
+    </footer>
+</div>
+
+<script>
+    // ---------- ИНИЦИАЛИЗАЦИЯ КАРТЫ ----------
+    // Центр карты: Москва, масштаб 5 (видно европейскую часть)
+    const map = L.map('map').setView([55.751244, 37.618423], 5);
+
+    // Базовый тайловый слой OpenStreetMap (бесплатный, без ключа)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+        minZoom: 2
+    }).addTo(map);
+
+    // ---------- ХРАНИЛИЩЕ ТОЧЕК ----------
+    // Массив объектов вида { lat, lng, marker, groupId? } (groupId для отладки не обязателен)
+    let points = [];
+
+    // Элемент счётчика
+    const pointCountSpan = document.getElementById('pointCount');
+
+    // Функция обновления UI счётчика
+    function updateCounterUI() {
+        pointCountSpan.innerText = points.length;
+    }
+
+    /**
+     * Генерирует случайную точку в радиусе (метров) от центра (centerLat, centerLng).
+     * Используется приближение: 1 градус широты ≈ 111320 м, 
+     * 1 градус долготы ≈ 111320 * cos(широта в радианах) метров.
+     * Это достаточно точно для радиуса до 1-2 км.
+     * @param {number} centerLat - широта центра (градусы)
+     * @param {number} centerLng - долгота центра (градусы)
+     * @param {number} radiusMeters - радиус разброса в метрах (по умолч. 500)
+     * @returns {{lat: number, lng: number}} - новые координаты в градусах
+     */
+    function getRandomPointNearby(centerLat, centerLng, radiusMeters = 500) {
+        // Генерируем случайное расстояние (0 .. radiusMeters) с равномерным распределением,
+        // но чтобы точки не скапливались только в центре, используем sqrt для равномерного распределения по площади.
+        // Для более естественного "облака" используем равномерное по площади: r = radius * sqrt(random())
+        const randomRadius = radiusMeters * Math.sqrt(Math.random());
+        // Случайный угол (0..2PI)
+        const angle = Math.random() * 2 * Math.PI;
+        
+        // Смещения в метрах по осям локальной системы координат (север-юг, восток-запад)
+        const dxMeters = randomRadius * Math.cos(angle);
+        const dyMeters = randomRadius * Math.sin(angle);
+        
+        // Переводим смещение по широте (dyMeters -> градусы): 1 градус широты ≈ 111320 м
+        const deltaLat = dyMeters / 111320;
+        
+        // Переводим смещение по долготе (dxMeters -> градусы) с учётом текущей широты
+        const metersPerLngDegree = 111320 * Math.cos(centerLat * Math.PI / 180);
+        const deltaLng = dxMeters / metersPerLngDegree;
+        
+        const newLat = centerLat + deltaLat;
+        const newLng = centerLng + deltaLng;
+        
+        return { lat: newLat, lng: newLng };
+    }
+
+    /**
+     * Создает маркер на карте с popup-информацией и возвращает объект маркера
+     * @param {number} lat 
+     * @param {number} lng 
+     * @returns {L.Marker}
+     */
+    function createMarker(lat, lng) {
+        // Используем стандартный маркер, но можно сделать красивый цветной? оставим классику
+        const marker = L.marker([lat, lng]);
+        // Добавляем popup с координатами (6 знаков после запятой для точности)
+        marker.bindPopup(`
+            <b>🎲 Случайная точка</b><br>
+            <span style="font-family:monospace">
+            latitude_metair: ${lat.toFixed(6)}<br>
+            longitude_metair: ${lng.toFixed(6)}
+            </span>
+            <br><small>сгенерирована по клику</small>
+        `);
+        return marker;
+    }
+
+    /**
+     * Добавляет массив точек (каждая точка {lat, lng}) на карту и в хранилище
+     * @param {Array<{lat: number, lng: number}>} newPointsArray 
+     */
+    function addMultiplePoints(newPointsArray) {
+        const markersToAdd = [];
+        const pointsToStore = [];
+        
+        for (const coord of newPointsArray) {
+            const marker = createMarker(coord.lat, coord.lng);
+            markersToAdd.push(marker);
+            pointsToStore.push({
+                lat: coord.lat,
+                lng: coord.lng,
+                marker: marker
+            });
+        }
+        
+        // Добавляем все маркеры на карту одной группой (немного производительнее)
+        markersToAdd.forEach(marker => marker.addTo(map));
+        
+        // Сохраняем в общий массив
+        points.push(...pointsToStore);
+        
+        // Обновляем счётчик
+        updateCounterUI();
+    }
+
+    /**
+     * Основной обработчик клика по карте: генерирует 20 случайных точек в радиусе ~500 метров
+     * @param {L.LatLng} latlng 
+     */
+    function onMapClick(latlng) {
+        const centerLat = latlng.lat;
+        const centerLng = latlng.lng;
+        
+        // Генерируем 20 случайных точек, близких к месту клика
+        const generatedPoints = [];
+        const RADIUS_METERS = 500;  // полкилометра, достаточно чтобы создать "кучку" но не разлетаться далеко
+        
+        for (let i = 0; i < 20; i++) {
+            const randomPoint = getRandomPointNearby(centerLat, centerLng, RADIUS_METERS);
+            generatedPoints.push(randomPoint);
+        }
+        
+        // Добавляем все 20 точек на карту
+        addMultiplePoints(generatedPoints);
+        
+        // Небольшая визуальная обратная связь: можно показать временный всплывающий маркер в центре клика
+        // Создаем временный маркер-анимацию, чтобы пользователь видел, что клик обработан (но не захламляем)
+        const tempMarker = L.marker([centerLat, centerLng], {
+            icon: L.divIcon({
+                className: 'temp-click-marker',
+                html: '➕ 20 точек',
+                iconSize: [60, 30],
+                popupAnchor: [0, -10]
+            })
+        }).addTo(map);
+        
+        setTimeout(() => {
+            map.removeLayer(tempMarker);
+        }, 800);
+        
+        // Можно вывести в консоль информацию для отладки
+        console.log(`Сгенерировано 20 точек в радиусе ${RADIUS_METERS}м от [${centerLat.toFixed(5)}, ${centerLng.toFixed(5)}]`);
+    }
+    
+    // Назначаем обработчик клика на карту
+    map.on('click', (e) => {
+        onMapClick(e.latlng);
+    });
+
+    // ---------- ОЧИСТКА ВСЕХ ТОЧЕК ----------
+    function clearAllPoints() {
+        if (points.length === 0) return;
+        
+        // Удаляем каждый маркер с карты
+        points.forEach(point => {
+            if (point.marker && map.hasLayer(point.marker)) {
+                map.removeLayer(point.marker);
+            }
+        });
+        // Очищаем массив
+        points = [];
+        updateCounterUI();
+        console.log('Все точки удалены');
+        // Показываем ненавязчивое уведомление через alert не будем, просто консоль + счетчик
+    }
+
+    // ---------- ЭКСПОРТ В CSV (longitude_metair, latitude_metair) ----------
+    function exportToCSV() {
+        if (points.length === 0) {
+            alert("Нет точек для экспорта. Кликните по карте, чтобы добавить 20 случайных точек.");
+            return;
+        }
+        
+        // Заголовки в точности по заданию: longitude_metair,latitude_metair
+        const headers = ['longitude_metair', 'latitude_metair'];
+        
+        // Формируем строки данных: для каждой точки ДОЛГОТА (lng) первой, ШИРОТА (lat) второй.
+        // Внимание: в геодезии обычно (долгота, широта) соответствует (x, y) = (lng, lat).
+        const rows = points.map(point => {
+            const lonFormatted = point.lng.toFixed(7);   // 7 знаков для повышенной точности
+            const latFormatted = point.lat.toFixed(7);
+            return `${lonFormatted},${latFormatted}`;
+        });
+        
+        // Собираем CSV: заголовок + строки
+        let csvContent = headers.join(',') + '\n' + rows.join('\n');
+        
+        // Добавляем BOM для корректного открытия в Excel с русскими символами (хотя их нет, но для совместимости)
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        // Генерируем имя файла с датой-временем
+        const now = new Date();
+        const timestamp = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}_${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}`;
+        const filename = `map_random_points_${timestamp}.csv`;
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        alert(`✅ Экспортировано ${points.length} точек в файл "${filename}"`);
+    }
+    
+    // ---------- ПРИВЯЗКА КНОПОК UI ----------
+    document.getElementById('exportCsvBtn').addEventListener('click', exportToCSV);
+    document.getElementById('clearAllBtn').addEventListener('click', clearAllPoints);
+    
+    // ---------- ДЕМОНСТРАЦИОННЫЕ ТОЧКИ (НЕСКОЛЬКО КЛАСТЕРОВ ДЛЯ ПРИМЕРА) ----------
+    // Чтобы карта не была пустой, добавим 20 случайных точек вокруг Москвы и 20 вокруг Питера,
+    // показывая функционал «рандомного облака». Это необязательно, но наглядно.
+    // Однако по желанию можно начать с чистого листа, но лучше показать пример генерации.
+    // Используем setTimeout, чтобы карта была готова.
+    setTimeout(() => {
+        if (points.length === 0) {
+            // Демо-облако 1: Москва (55.751244, 37.618423) — 20 случайных точек
+            const moscowCenter = { lat: 55.751244, lng: 37.618423 };
+            const demoPointsMoscow = [];
+            for (let i = 0; i < 20; i++) {
+                const rand = getRandomPointNearby(moscowCenter.lat, moscowCenter.lng, 550);
+                demoPointsMoscow.push(rand);
+            }
+            addMultiplePoints(demoPointsMoscow);
+            
+            // Демо-облако 2: Санкт-Петербург (59.934280, 30.335099) — 20 случайных точек
+            const spbCenter = { lat: 59.934280, lng: 30.335099 };
+            const demoPointsSpb = [];
+            for (let i = 0; i < 20; i++) {
+                const rand = getRandomPointNearby(spbCenter.lat, spbCenter.lng, 550);
+                demoPointsSpb.push(rand);
+            }
+            addMultiplePoints(demoPointsSpb);
+            
+            // Небольшой комментарий в консоль
+            console.log(`🔰 Демо-режим: добавлено 40 случайных точек (Москва + Санкт-Петербург) в радиусе 550м. Кликайте по карте, чтобы добавлять свои кластеры по 20 точек.`);
+        }
+    }, 300);
+    
+    // Добавим стиль для временного маркера обратной связи (всплывающий текст)
+    const style = document.createElement('style');
+    style.textContent = `
+        .temp-click-marker {
+            background: #2c7da0cc;
+            color: white;
+            font-weight: bold;
+            border-radius: 30px;
+            padding: 5px 10px;
+            border: 2px solid white;
+            white-space: nowrap;
+            font-size: 13px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            backdrop-filter: blur(4px);
+            font-family: monospace;
+            text-align: center;
+            line-height: 1.2;
+        }
+        /* Стиль для всплывающих окон маркеров (чуть лучше читаемость) */
+        .leaflet-popup-content {
+            font-size: 13px;
+            line-height: 1.4;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Небольшое дополнение: при повторных кликах создаётся по 20 точек и они все сохраняются.
+    // Чтобы избежать излишнего накопления десятков тысяч точек, но пользователь может сам очищать.
+    // Максимальное количество не ограничено, но для производительности при 2000+ маркеров leaflet справляется.
+    // Добавим возможность "приближения к месту последнего клика" по желанию? Не требуется, но полезно.
+    // Создадим дополнительную кнопку для масштабирования? Не нужно, но пусть будет.
+    // Дополнительно: отображение информации о последнем сгенерированном количестве.
+    let lastGeneratedInfo = null;
+    // Можно повесить всплывающее сообщение в углу, но не обязательно, и так есть временный маркер.
+</script>
+</body>
+</html>

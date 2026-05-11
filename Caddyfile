@@ -1,0 +1,17 @@
+aq.ural-net.ru {
+    root * /usr/share/caddy
+    file_server
+
+    handle /api/swagger* {
+        uri strip_prefix /api
+        reverse_proxy backend:8080
+    }
+    
+    handle /api/* {
+        reverse_proxy backend:8080
+    }
+    
+    handle {
+        file_server
+    }
+}

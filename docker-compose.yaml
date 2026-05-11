@@ -1,0 +1,103 @@
+version: "3.9"
+
+networks:
+  aq-network:
+    driver: bridge
+
+services:
+  redis:
+    image: redis:latest
+    container_name: redis_container
+    env_file:
+      - .env
+    volumes:
+      - ./redisdata:/data
+    command: >
+      sh -c '
+        mkdir -p /usr/local/etc/redis &&
+        echo "bind 0.0.0.0" > /usr/local/etc/redis/redis.conf &&
+        echo "requirepass $REDIS_PASSWORD" >> /usr/local/etc/redis/redis.conf &&
+        echo "appendonly yes" >> /usr/local/etc/redis/redis.conf &&
+        echo "appendfsync everysec" >> /usr/local/etc/redis/redis.conf &&
+        echo "user default on nopass ~* +@all" > /usr/local/etc/redis/users.acl &&
+        echo "user $REDIS_USER on >$REDIS_USER_PASSWORD ~* +@all" >> /usr/local/etc/redis/users.acl &&
+        redis-server /usr/local/etc/redis/redis.conf --aclfile /usr/local/etc/redis/users.acl
+      '
+    restart: unless-stopped
+    networks:
+      - aq-network
+
+  postgres:
+    image: postgres:16
+    container_name: aq_postgres
+    env_file:
+      - .env
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aq_monitoring"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - aq-network
+
+  backend:
+    container_name: aq_backend
+    build:
+      context: ./backend
+      dockerfile: ./AirQualityMonitoring.Core/Dockerfile
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      Redis__Host: ${REDIS_HOST}
+      Redis__User: ${REDIS_USER}
+      Redis__Password: ${REDIS_USER_PASSWORD}
+      DbConnectionString: ${DB_CONNECTION_STRING}
+    ports:
+      - "8080:8080"
+    expose:
+      - "8080"
+    restart: unless-stopped
+    networks:
+      - aq-network
+
+  caddy:
+    image: caddy:latest
+    container_name: aq_caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./map:/usr/share/caddy
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - aq-network
+
+  k6:
+    image: grafana/k6:latest
+    container_name: aq_k6
+    volumes:
+      - ./k6:/scripts
+    depends_on:
+      - backend
+    command: run /scripts/k6-script.js
+    networks:
+      - aq-network
+
+volumes:
+  caddy_data:
+  caddy_config:

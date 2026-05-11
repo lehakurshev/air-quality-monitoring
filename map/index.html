@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Air Quality Map - Интерактивная карта качества воздуха</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .leaflet-control-attribution {
+            display: none;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+
+        .control-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(8px);
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            min-width: 260px;
+            max-width: 280px;
+        }
+
+        .panel-header {
+            padding: 12px 15px;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            transition: background 0.2s;
+        }
+
+        .panel-header:hover {
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        .panel-header h3 {
+            margin: 0;
+            font-size: 14px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .toggle-icon {
+            font-size: 14px;
+            color: #666;
+            transition: transform 0.3s;
+        }
+
+        .panel-header.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+
+        .panel-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            max-height: 500px;
+        }
+
+        .panel-content.collapsed {
+            max-height: 0;
+        }
+
+        .inner-content {
+            padding: 15px;
+        }
+
+        .filter-group {
+            margin-bottom: 0;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .filter-select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .metric-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 8px;
+            background: #f0f0f0;
+            word-break: break-all;
+        }
+
+        .api-section {
+            border-top: 1px solid #eee;
+        }
+
+        .api-section .inner-content {
+            padding-top: 12px;
+            padding-bottom: 15px;
+        }
+
+        .api-section input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            font-size: 12px;
+        }
+
+        .api-section button {
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+            background: #2c7da0;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+            font-size: 12px;
+        }
+
+        .api-section button:hover {
+            background: #1f5e7a;
+        }
+
+        .api-section button:active {
+            transform: scale(0.98);
+        }
+
+        .status-message {
+            font-size: 11px;
+            margin-top: 8px;
+            padding: 5px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .doc-link {
+            display: block;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 11px;
+            color: #2c7da0;
+            text-decoration: none;
+        }
+
+        .doc-link:hover {
+            text-decoration: underline;
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 1000;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
+            border-left: 4px solid #2c7da0;
+            max-width: 250px;
+            backdrop-filter: blur(4px);
+        }
+
+        .legend span {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        .legend-item {
+            margin: 3px 0;
+        }
+
+        .token-display {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 6px;
+            margin: 8px 0;
+            font-size: 10px;
+            word-break: break-all;
+            font-family: monospace;
+            text-align: center;
+        }
+
+        @media (max-width: 600px) {
+            .control-panel {
+                min-width: 240px;
+                max-width: 260px;
+            }
+
+            .filter-select {
+                font-size: 12px;
+            }
+
+            .inner-content {
+                padding: 12px;
+            }
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div id="map"></div>
+
+    <div class="control-panel">
+        <!-- Панель фильтрации (свернута по умолчанию) -->
+        <div class="filter-panel">
+            <div class="panel-header collapsed" id="filterHeader">
+                <h3>Фильтр данных</h3>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="panel-content collapsed" id="filterContent">
+                <div class="inner-content">
+                    <div class="filter-group">
+                        <label>Выберите метрику для цветовой индикации:</label>
+                        <select id="metricSelect" class="filter-select">
+                            <option value="">-- Загрузка метрик --</option>
+                        </select>
+                        <div class="metric-badge" id="activeMetricBadge">⚡ Выберите метрику</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Панель API (свернута по умолчанию) -->
+        <div class="api-section">
+            <div class="panel-header collapsed" id="apiHeader">
+                <h3>🔑 Регистрация / API Доступ</h3>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="panel-content collapsed" id="apiContent">
+                <div class="inner-content">
+                    <input type="email" id="registerEmail" placeholder="Email" autocomplete="off">
+                    <input type="password" id="registerPassword" placeholder="Пароль" autocomplete="off">
+                    <button id="registerBtn">📝 Зарегистрироваться и получить API ключ</button>
+                    <div id="apiStatus" class="status-message"></div>
+                    <div id="tokenDisplay" class="token-display" style="display: none;"></div>
+                    <a href="/api/swagger/index.html" target="_blank" class="doc-link">📖 Документация API</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="legend" id="legend">
+        <div id="legendContent">-- Выберите метрику --</div>
+        <small style="display:block; margin-top:5px;">*Цвет маркеров зависит от выбранной метрики</small>
+    </div>
+
+    <script>
+        const map = L.map('map').setView([56.8333, 60.5833], 11);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        let markers = [];
+        let currentData = [];
+        let currentMetric = null;
+        let availableMetrics = [];
+
+        // Динамические пороги для цветов (автоматически вычисляются на основе данных)
+        let colorThresholds = {};
+
+        // --- Функции для сворачивания/разворачивания панелей ---
+        function togglePanel(header, content) {
+            header.classList.toggle('collapsed');
+            content.classList.toggle('collapsed');
+        }
+
+        // Настройка сворачивания для панели фильтров
+        const filterHeader = document.getElementById('filterHeader');
+        const filterContent = document.getElementById('filterContent');
+        filterHeader.addEventListener('click', () => togglePanel(filterHeader, filterContent));
+
+        // Настройка сворачивания для панели API
+        const apiHeader = document.getElementById('apiHeader');
+        const apiContent = document.getElementById('apiContent');
+        apiHeader.addEventListener('click', () => togglePanel(apiHeader, apiContent));
+
+        // --- Автоматическое вычисление порогов для любой метрики (квантили) ---
+        function calculateThresholds(values) {
+            if (!values || values.length === 0) return { low: 0, medium: 0, high: 0 };
+
+            const sorted = [...values].sort((a, b) => a - b);
+            const len = sorted.length;
+
+            return {
+                low: sorted[Math.floor(len * 0.25)] || 0,
+                medium: sorted[Math.floor(len * 0.5)] || 0,
+                high: sorted[Math.floor(len * 0.75)] || 0,
+                min: sorted[0],
+                max: sorted[len - 1]
+            };
+        }
+
+        // --- Получение цвета на основе динамических порогов ---
+        function getColorByMetricDynamic(value, metricKey) {
+            if (value === undefined || value === null) return "#999999";
+
+            const thresholds = colorThresholds[metricKey];
+            if (!thresholds) return "#888888";
+
+            if (value <= thresholds.low) return "#22c55e";
+            if (value <= thresholds.medium) return "#eab308";
+            if (value <= thresholds.high) return "#f97316";
+            return "#ef4444";
+        }
+
+        // --- Универсальное создание попапа: отображаются ВСЕ поля (кроме координат и id) ---
+        function buildDynamicPopup(pointData) {
+            const excludeKeys = ['latitude', 'longitude', 'id', '_id'];
+            let popupContent = '<div style="font-family: monospace; font-size: 13px; min-width: 180px;">';
+            popupContent += '<strong>📊 Данные измерения:</strong><br><hr style="margin: 5px 0;">';
+
+            let hasMetrics = false;
+
+            for (let [key, value] of Object.entries(pointData)) {
+                if (!excludeKeys.includes(key) && value !== undefined && value !== null) {
+                    const prettyKey = key.charAt(0).toUpperCase() + key.slice(1);
+                    const formattedValue = typeof value === 'number' ? value.toFixed(2) : value;
+                    popupContent += `<b>${prettyKey}:</b> ${formattedValue}<br>`;
+                    hasMetrics = true;
+                }
+            }
+
+            if (!hasMetrics) {
+                popupContent += 'Нет данных о качестве воздуха';
+            }
+
+            popupContent += '</div>';
+            return popupContent;
+        }
+
+        // --- Обновление выпадающего списка метрик на основе полученных данных ---
+        function updateMetricSelector(dataPoints) {
+            if (!dataPoints || dataPoints.length === 0) return;
+
+            // Собираем все числовые поля (кроме координат и id)
+            const metricSet = new Set();
+
+            dataPoints.forEach(point => {
+                Object.keys(point).forEach(key => {
+                    if (!['latitude', 'longitude', 'id', '_id'].includes(key) &&
+                        typeof point[key] === 'number') {
+                        metricSet.add(key);
+                    }
+                });
+            });
+
+            availableMetrics = Array.from(metricSet);
+
+            const select = document.getElementById('metricSelect');
+            select.innerHTML = '<option value="">-- Выберите метрику --</option>';
+
+            if (availableMetrics.length === 0) {
+                select.innerHTML = '<option value="">-- Нет доступных метрик --</option>';
+                document.getElementById('activeMetricBadge').innerHTML = '❌ Нет числовых метрик в данных';
+                return;
+            }
+
+            availableMetrics.forEach(metric => {
+                const option = document.createElement('option');
+                option.value = metric;
+                option.textContent = `${metric.toUpperCase()}${metric === currentMetric ? ' (активна)' : ''}`;
+                select.appendChild(option);
+            });
+
+            if (currentMetric && availableMetrics.includes(currentMetric)) {
+                select.value = currentMetric;
+            } else if (availableMetrics.length > 0 && !currentMetric) {
+                currentMetric = availableMetrics[0];
+                select.value = currentMetric;
+                updateColorThresholds(dataPoints, currentMetric);
+                document.getElementById('activeMetricBadge').innerHTML = `🎨 ${currentMetric.toUpperCase()}`;
+            }
+        }
+
+        // --- Обновление порогов цвета на основе данных для выбранной метрики ---
+        function updateColorThresholds(dataPoints, metric) {
+            const values = dataPoints
+                .map(point => point[metric])
+                .filter(v => v !== undefined && v !== null && typeof v === 'number');
+
+            if (values.length === 0) return;
+
+            const thresholds = calculateThresholds(values);
+            colorThresholds[metric] = thresholds;
+
+            updateLegend(metric, thresholds);
+        }
+
+        // --- Обновление легенды ---
+        function updateLegend(metric, thresholds) {
+            const legendDiv = document.getElementById('legendContent');
+            legendDiv.innerHTML = `
+                <strong>Цветовая шкала</strong><br>
+                <div class="legend-item"><span style="background: #22c55e;"></span> ≤ ${thresholds.low.toFixed(2)} (низкий)</div>
+                <div class="legend-item"><span style="background: #eab308;"></span> ≤ ${thresholds.medium.toFixed(2)} (средний)</div>
+                <div class="legend-item"><span style="background: #f97316;"></span> ≤ ${thresholds.high.toFixed(2)} (высокий)</div>
+                <div class="legend-item"><span style="background: #ef4444;"></span> > ${thresholds.high.toFixed(2)} (очень высокий)</div>
+                <hr style="margin: 5px 0;">
+                <div>📊 Диапазон: ${thresholds.min.toFixed(2)} - ${thresholds.max.toFixed(2)}</div>
+                <div>🔬 Метрика: <strong>${metric.toUpperCase()}</strong></div>
+            `;
+        }
+
+        // --- Отрисовка маркеров ---
+        function renderMarkers(dataPoints, metric) {
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+
+            if (!dataPoints || dataPoints.length === 0 || !metric) return;
+
+            updateColorThresholds(dataPoints, metric);
+
+            dataPoints.forEach(point => {
+                let metricValue = point[metric];
+                let markerColor = getColorByMetricDynamic(metricValue, metric);
+
+                const marker = L.circleMarker([point.latitude, point.longitude], {
+                    radius: 8,
+                    color: markerColor,
+                    weight: 2,
+                    opacity: 0.9,
+                    fillOpacity: 0.7,
+                    fillColor: markerColor
+                });
+
+                const popupHtml = buildDynamicPopup(point);
+                marker.bindPopup(popupHtml);
+
+                marker.addTo(map);
+                markers.push(marker);
+            });
+        }
+
+        // --- Загрузка данных с API ---
+        let currentApiToken = localStorage.getItem('air_api_token') || '';
+
+        function setApiToken(token) {
+            currentApiToken = token;
+            if (token) {
+                localStorage.setItem('air_api_token', token);
+                const tokenDisplay = document.getElementById('tokenDisplay');
+                tokenDisplay.style.display = 'block';
+                tokenDisplay.innerHTML = `✅ Ваш API ключ:<br><strong>${token}</strong><br><small>Сохранен в браузере</small>`;
+                showStatus('API ключ успешно сохранен!', 'success');
+            } else {
+                localStorage.removeItem('air_api_token');
+                document.getElementById('tokenDisplay').style.display = 'none';
+                showStatus('API ключ удален', 'info');
+            }
+            loadData();
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('apiStatus');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message status-${type}`;
+            setTimeout(() => {
+                if (statusDiv.textContent === message) {
+                    statusDiv.textContent = '';
+                    statusDiv.className = 'status-message';
+                }
+            }, 5000);
+        }
+
+        async function loadData() {
+            try {
+                const headers = {};
+                if (currentApiToken) {
+                    headers['Authorization'] = `Bearer ${currentApiToken}`;
+                }
+
+                const response = await fetch('/api/measurement', {
+                    method: 'GET',
+                    headers: headers
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        showStatus('❌ Не авторизован. Получите API ключ через регистрацию', 'error');
+                    } else {
+                        showStatus(`Ошибка загрузки: ${response.status}`, 'error');
+                    }
+                    return;
+                }
+
+                const data = await response.json();
+                let measurements = Array.isArray(data) ? data : (data.items || data.results || []);
+                if (!Array.isArray(measurements)) measurements = [];
+
+                currentData = measurements;
+
+                if (measurements.length > 0) {
+                    updateMetricSelector(measurements);
+
+                    if (currentMetric && availableMetrics.includes(currentMetric)) {
+                        renderMarkers(currentData, currentMetric);
+                    } else if (availableMetrics.length > 0) {
+                        currentMetric = availableMetrics[0];
+                        document.getElementById('metricSelect').value = currentMetric;
+                        document.getElementById('activeMetricBadge').innerHTML = `${currentMetric.toUpperCase()}`;
+                        renderMarkers(currentData, currentMetric);
+                    }
+                } else {
+                    console.log('Нет данных на сервере');
+                    document.getElementById('metricSelect').innerHTML = '<option value="">-- Нет данных --</option>';
+                }
+            } catch (error) {
+                console.error('Ошибка при загрузке:', error);
+                showStatus('Ошибка сети или сервера', 'error');
+            }
+        }
+
+        // --- Регистрация и получение API ключа (согласно документации) ---
+        async function registerAndGetToken(email, password) {
+            try {
+                // Регистрация пользователя
+                showStatus('Регистрация пользователя...', 'info');
+                const registerResponse = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, password: password })
+                });
+
+                if (!registerResponse.ok) {
+                    if (registerResponse.status === 409) {
+                        showStatus('Пользователь уже существует. Пытаемся получить токен...', 'info');
+                    } else {
+                        showStatus(`Ошибка регистрации: ${registerResponse.status}`, 'error');
+                        return null;
+                    }
+                } else {
+                    showStatus('✅ Регистрация успешна! Получаем API ключ...', 'success');
+                }
+
+                const tokenData = await registerResponse.json();
+                console.log('Ответ от /api/auth/register:', tokenData);
+
+                // Извлекаем apiToken из ответа (согласно документации)
+                const apiToken = tokenData.apiToken || tokenData.token || tokenData.accessToken;
+
+                if (apiToken) {
+                    showStatus('🎉 API ключ успешно получен!', 'success');
+                    return apiToken;
+                } else {
+                    showStatus('Ответ не содержит apiToken. Проверьте формат ответа сервера', 'error');
+                    console.error('Неожиданный формат ответа:', tokenData);
+                    return null;
+                }
+            } catch (err) {
+                console.error('Ошибка:', err);
+                showStatus('Ошибка соединения с сервером', 'error');
+                return null;
+            }
+        }
+
+        // --- Обработчик кнопки регистрации ---
+        document.getElementById('registerBtn').addEventListener('click', async () => {
+            const email = document.getElementById('registerEmail').value.trim();
+            const password = document.getElementById('registerPassword').value;
+
+            // Валидация
+            if (!email) {
+                showStatus('Введите email', 'error');
+                return;
+            }
+
+            if (!email.includes('@') || !email.includes('.')) {
+                showStatus('Введите корректный email', 'error');
+                return;
+            }
+
+            if (!password) {
+                showStatus('Введите пароль', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                showStatus('Пароль должен содержать минимум 6 символов', 'error');
+                return;
+            }
+
+            // Получаем токен через регистрацию
+            const newToken = await registerAndGetToken(email, password);
+
+            if (newToken) {
+                setApiToken(newToken);
+                document.getElementById('registerPassword').value = '';
+                await loadData();
+            } else {
+                showStatus('Не удалось получить API ключ. Проверьте данные или попробуйте позже', 'error');
+            }
+        });
+
+        // --- Обработчик смены метрики ---
+        const metricSelect = document.getElementById('metricSelect');
+        const metricBadge = document.getElementById('activeMetricBadge');
+
+        metricSelect.addEventListener('change', (e) => {
+            const newMetric = e.target.value;
+            if (newMetric && availableMetrics.includes(newMetric)) {
+                currentMetric = newMetric;
+                metricBadge.innerHTML = `${currentMetric.toUpperCase()}`;
+                if (currentData.length) {
+                    renderMarkers(currentData, currentMetric);
+                }
+            }
+        });
+
+        // Инициализация: проверяем сохраненный токен
+        if (currentApiToken) {
+            document.getElementById('tokenDisplay').style.display = 'block';
+            document.getElementById('tokenDisplay').innerHTML = `✅ Ваш API ключ:<br><strong>${currentApiToken}</strong><br><small>Сохранен в браузере</small>`;
+        }
+
+        // Загружаем данные при старте
+        loadData();
+
+        // Автообновление каждые 10 секунд
+        setInterval(() => loadData(), 10000);
+
+        // Добавляем возможность отправить форму по Enter
+        const inputs = ['registerEmail', 'registerPassword'];
+        inputs.forEach(id => {
+            document.getElementById(id).addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('registerBtn').click();
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

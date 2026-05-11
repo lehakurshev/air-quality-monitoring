@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AirQualityMonitoring.Core", "AirQualityMonitoring.Core\AirQualityMonitoring.Core.csproj", "{3A656876-43BA-4C9D-B84B-72856AEA4C79}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClassLibAirQualityMonitoring.Domain", "ClassLibAirQualityMonitoring.Domain\ClassLibAirQualityMonitoring.Domain.csproj", "{BEC64735-BED4-4B6B-B1B9-73FDCDBF5C3C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AirQualityMonitoring.Infrastructure.Postgres", "AirQualityMonitoring.Infrastructure.Postgres\AirQualityMonitoring.Infrastructure.Postgres.csproj", "{0EBD8977-ED1E-43E4-AF13-10E7B223981B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AirQualityMonitoring.Infrastructure.Redis", "AirQualityMonitoring.Infrastructure.Redis\AirQualityMonitoring.Infrastructure.Redis.csproj", "{7EDEFA92-3A0F-4A8B-AEBD-D465A67C36D4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3A656876-43BA-4C9D-B84B-72856AEA4C79}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A656876-43BA-4C9D-B84B-72856AEA4C79}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A656876-43BA-4C9D-B84B-72856AEA4C79}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A656876-43BA-4C9D-B84B-72856AEA4C79}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BEC64735-BED4-4B6B-B1B9-73FDCDBF5C3C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BEC64735-BED4-4B6B-B1B9-73FDCDBF5C3C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BEC64735-BED4-4B6B-B1B9-73FDCDBF5C3C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BEC64735-BED4-4B6B-B1B9-73FDCDBF5C3C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0EBD8977-ED1E-43E4-AF13-10E7B223981B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0EBD8977-ED1E-43E4-AF13-10E7B223981B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0EBD8977-ED1E-43E4-AF13-10E7B223981B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0EBD8977-ED1E-43E4-AF13-10E7B223981B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7EDEFA92-3A0F-4A8B-AEBD-D465A67C36D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7EDEFA92-3A0F-4A8B-AEBD-D465A67C36D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7EDEFA92-3A0F-4A8B-AEBD-D465A67C36D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7EDEFA92-3A0F-4A8B-AEBD-D465A67C36D4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
