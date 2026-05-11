@@ -7,6 +7,7 @@ networks:
 services:
   redis:
     image: redis:latest
+    profiles: ["core"]
     container_name: redis_container
     env_file:
       - .env
@@ -29,6 +30,7 @@ services:
 
   postgres:
     image: postgres:16
+    profiles: ["core"]
     container_name: aq_postgres
     env_file:
       - .env
@@ -47,6 +49,7 @@ services:
 
   backend:
     container_name: aq_backend
+    profiles: ["core"]
     build:
       context: ./backend
       dockerfile: ./AirQualityMonitoring.Core/Dockerfile
@@ -72,6 +75,7 @@ services:
 
   caddy:
     image: caddy:latest
+    profiles: ["core"]
     container_name: aq_caddy
     ports:
       - "80:80"
@@ -89,6 +93,7 @@ services:
 
   k6-tester:
     image: grafana/k6:latest
+    profiles: ["tests"]
     container_name: aq_k6_tester
     volumes:
       - ./k6-tester:/scripts
@@ -100,6 +105,7 @@ services:
 
   sensor-community-daemon:
     image: grafana/k6:latest
+    profiles: ["core"]
     container_name: aq_sensor_daemon
     volumes:
       - ./k6-demon:/scripts
