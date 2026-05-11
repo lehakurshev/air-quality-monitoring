@@ -1,5 +1,6 @@
 ﻿using AirQualityMonitoring.Core.Interfaces;
 using AirQualityMonitoring.Infrastructure.Postgres;
+using ClassLibAirQualityMonitoring.Domain;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 
@@ -33,9 +34,26 @@ public sealed class RegisterHandler
     {
         using var connection = await _db.CreateConnectionAsync(ct);
 
+        var user = await connection.QueryFirstOrDefaultAsync<UserRow>(
+            """
+            select id, email, password_hash, api_token
+            from users
+            where email = @Email
+            """,
+            new { Email = email });
+
+        if (user != null)
+        {
+            var passwordValid = BCrypt.Net.BCrypt.Verify(password, user.password_hash);
+
+            if (!passwordValid)
+                throw new Exception("Invalid password");
+
+            return user.api_token;
+        }
+
         var userId = Guid.NewGuid();
         var apiToken = Guid.NewGuid().ToString();
-
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 6);
 
         await connection.ExecuteAsync(
