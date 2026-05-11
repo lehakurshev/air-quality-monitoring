@@ -7,6 +7,8 @@ const char* ssid = "*";
 const char* password = "*";
 String email = "*";
 String passw = "*";
+const float latitude = 0; // 
+const float longitude = 0; //
 
 const char* baseUrl = "https://aq.ural-net.ru";
 
@@ -152,8 +154,8 @@ void sendMeasurement() {
   doc["no2"] = val * 5;
   doc["pm25"] = val * 20;
   doc["pm10"] = val * 30;
-  doc["latitude"] = 56.895919;
-  doc["longitude"] = 60.752721;
+  doc["latitude"] = latitude;
+  doc["longitude"] = longitude;
 
   String body;
   serializeJson(doc, body);
