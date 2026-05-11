@@ -4,12 +4,12 @@
 #include <ArduinoJson.h>
 
 const char* ssid = "*****"; //
-const char* password = "*******"; //
+const char* password = "*****"; //
 
 const char* baseUrl = "https://aq.ural-net.ru";
 
-String email = "esp8266_user_123456777888@mail.com";
-String passw = "StrongPass123456777000";
+String email = "*****"; //
+String passw = "*****"; //
 
 String apiToken = "";
 String bearerToken = "";
