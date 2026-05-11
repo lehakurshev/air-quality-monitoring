@@ -5,6 +5,7 @@ import { check, sleep } from 'k6'
 // Config
 // =====================================
 const BASE_URL = 'https://aq.ural-net.ru'
+
 const SENSOR_COMMUNITY_BASE =
   'https://data.sensor.community/airrohr/v1/sensor'
 
@@ -32,48 +33,9 @@ function randomString(length) {
 
 function extractValue(values, type) {
   const item = values.find((v) => v.value_type === type)
-
   if (!item) return null
-
   return Number(item.value)
 }
-
-// =====================================
-// Sensor registration
-// =====================================
-const sensors = SENSOR_IDS.map((sensorId) => {
-  const email = `sensor_${sensorId}_${randomString(8)}@test.local`
-  const password = randomString(20)
-
-  const registerRes = http.post(
-    `${BASE_URL}/api/auth/register`,
-    JSON.stringify({
-      email,
-      password,
-    }),
-    {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      responseType: 'text',
-    }
-  )
-
-  check(registerRes, {
-    [`register ${sensorId}`]: (r) => r.status === 200,
-  })
-
-  if (registerRes.status !== 200) {
-    throw new Error(
-      `Sensor ${sensorId}: registration failed (${registerRes.status})`
-    )
-  }
-
-  return {
-    sensorId,
-    apiToken: registerRes.json().apiToken,
-  }
-})
 
 // =====================================
 // k6 options
@@ -87,6 +49,65 @@ export const options = {
 // Main daemon loop
 // =====================================
 export default function () {
+  // 🔥 ВСЁ создаём внутри default function (важно для k6)
+
+  const sensors = []
+
+  // =====================================
+  // Sensor registration (SAFE now)
+  // =====================================
+  for (const sensorId of SENSOR_IDS) {
+    const email = `sensor_${sensorId}_${randomString(8)}@test.local`
+    const password = randomString(20)
+
+    const registerRes = http.post(
+      `${BASE_URL}/api/auth/register`,
+      JSON.stringify({
+        email,
+        password,
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    const ok = check(registerRes, {
+      [`register ${sensorId}`]: (r) => r.status === 200,
+    })
+
+    if (!ok || registerRes.status !== 200) {
+      console.error(
+        `Sensor ${sensorId}: registration failed (${registerRes.status})`
+      )
+      continue
+    }
+
+    let apiToken = null
+
+    try {
+      apiToken = registerRes.json().apiToken
+    } catch (e) {
+      console.error(`Sensor ${sensorId}: invalid register response`)
+      continue
+    }
+
+    sensors.push({
+      sensorId,
+      apiToken,
+    })
+  }
+
+  // если ничего не зарегистрировалось — стоп
+  if (sensors.length === 0) {
+    console.error('No sensors registered, exiting iteration')
+    return
+  }
+
+  // =====================================
+  // Infinite daemon loop
+  // =====================================
   while (true) {
     for (const sensor of sensors) {
       try {
@@ -102,7 +123,6 @@ export default function () {
             headers: {
               'Content-Type': 'application/json',
             },
-            responseType: 'text',
           }
         )
 
@@ -114,20 +134,25 @@ export default function () {
           console.error(
             `Sensor ${sensor.sensorId}: token request failed`
           )
-
           continue
         }
 
-        const accessToken = tokenRes.json().accessToken
+        let accessToken = null
+
+        try {
+          accessToken = tokenRes.json().accessToken
+        } catch (e) {
+          console.error(
+            `Sensor ${sensor.sensorId}: invalid token response`
+          )
+          continue
+        }
 
         // =====================================
-        // Read Sensor.Community data
+        // Sensor.Community fetch
         // =====================================
         const sensorRes = http.get(
-          `${SENSOR_COMMUNITY_BASE}/${sensor.sensorId}/`,
-          {
-            responseType: 'text',
-          }
+          `${SENSOR_COMMUNITY_BASE}/${sensor.sensorId}/`
         )
 
         check(sensorRes, {
@@ -139,7 +164,6 @@ export default function () {
           console.error(
             `Sensor ${sensor.sensorId}: fetch failed (${sensorRes.status})`
           )
-
           continue
         }
 
@@ -149,11 +173,9 @@ export default function () {
           console.error(
             `Sensor ${sensor.sensorId}: empty response`
           )
-
           continue
         }
 
-        // latest measurement
         const latest = data[0]
 
         const pm10 = extractValue(
@@ -170,12 +192,11 @@ export default function () {
           console.error(
             `Sensor ${sensor.sensorId}: missing P1/P2`
           )
-
           continue
         }
 
         // =====================================
-        // Send to AQ backend
+        // Send to backend
         // =====================================
         const payload = JSON.stringify({
           pm25,
@@ -192,7 +213,6 @@ export default function () {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${accessToken}`,
             },
-            responseType: 'none',
           }
         )
 
@@ -211,7 +231,7 @@ export default function () {
       }
     }
 
-    // wait 5 minutes before next polling cycle
+    // delay between cycles
     sleep(300)
   }
 }
