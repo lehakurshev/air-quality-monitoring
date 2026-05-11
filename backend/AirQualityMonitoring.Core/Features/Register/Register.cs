@@ -30,9 +30,16 @@ public sealed class RegisterHandler
         _db = db;
     }
 
-    public async Task<string> Handle(string email, string password, CancellationToken ct)
+    public async Task<string> Handle(
+    string email,
+    string password,
+    CancellationToken ct)
     {
         using var connection = await _db.CreateConnectionAsync(ct);
+
+        // =====================================
+        // Existing user
+        // =====================================
 
         var user = await connection.QueryFirstOrDefaultAsync<UserRow>(
             """
@@ -44,7 +51,10 @@ public sealed class RegisterHandler
 
         if (user != null)
         {
-            var passwordValid = BCrypt.Net.BCrypt.Verify(password, user.password_hash);
+            var passwordValid =
+                BCrypt.Net.BCrypt.Verify(
+                    password,
+                    user.password_hash);
 
             if (!passwordValid)
                 throw new Exception("Invalid password");
@@ -52,24 +62,76 @@ public sealed class RegisterHandler
             return user.api_token;
         }
 
+        // =====================================
+        // Create new user
+        // =====================================
+
         var userId = Guid.NewGuid();
+
         var apiToken = Guid.NewGuid().ToString();
-        var passwordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 6);
 
-        await connection.ExecuteAsync(
-            """
-            insert into users (id,email,password_hash,api_token,created_at)
-            values (@Id,@Email,@PasswordHash,@ApiToken,now())
-            """,
-            new
-            {
-                Id = userId,
-                Email = email,
-                PasswordHash = passwordHash,
-                ApiToken = apiToken
-            });
+        var passwordHash =
+            BCrypt.Net.BCrypt.HashPassword(
+                password,
+                workFactor: 6);
 
-        return apiToken;
+        try
+        {
+            await connection.ExecuteAsync(
+                """
+                insert into users
+                (
+                    id,
+                    email,
+                    password_hash,
+                    api_token,
+                    created_at
+                )
+                values
+                (
+                    @Id,
+                    @Email,
+                    @PasswordHash,
+                    @ApiToken,
+                    now()
+                )
+                """,
+                new
+                {
+                    Id = userId,
+                    Email = email,
+                    PasswordHash = passwordHash,
+                    ApiToken = apiToken
+                });
+
+            return apiToken;
+        }
+        catch (Npgsql.PostgresException ex)
+            when (ex.SqlState == "23505")
+        {
+            // =====================================
+            // User was created concurrently
+            // =====================================
+
+            var existingUser =
+                await connection.QuerySingleAsync<UserRow>(
+                    """
+                    select id, email, password_hash, api_token
+                    from users
+                    where email = @Email
+                    """,
+                    new { Email = email });
+
+            var passwordValid =
+                BCrypt.Net.BCrypt.Verify(
+                    password,
+                    existingUser.password_hash);
+
+            if (!passwordValid)
+                throw new Exception("Invalid password");
+
+            return existingUser.api_token;
+        }
     }
 }
 
