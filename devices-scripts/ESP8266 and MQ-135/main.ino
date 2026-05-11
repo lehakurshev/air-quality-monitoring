@@ -3,8 +3,8 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
-const char* ssid = "marina";
-const char* password = "CeywGavk239!#";
+const char* ssid = "*****"; //
+const char* password = "*******"; //
 
 const char* baseUrl = "https://aq.ural-net.ru";
 
