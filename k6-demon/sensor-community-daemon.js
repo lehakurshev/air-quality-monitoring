@@ -216,6 +216,8 @@ export default function () {
           }
         )
 
+        logRequest('POST', measurementUrl, measurementRes)
+
         check(measurementRes, {
           [`measurement ${sensor.sensorId}`]:
             (r) => r.status === 200,
