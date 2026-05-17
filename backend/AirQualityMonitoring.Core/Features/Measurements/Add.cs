@@ -31,8 +31,8 @@ public sealed class AddEndpoint : IEndpoint
                     [FromServices] AddHandler handler,
                     CancellationToken cancellationToken) =>
                 {
-                    await handler.Handle(context, request, cancellationToken);
-                    return Results.Ok(new { message = "Measurement added successfully" });
+                    var userId = await handler.Handle(context, request, cancellationToken);
+                    return Results.Ok(new { message = $"user({userId}) Measurement added successfully" });
                 })
             
             .WithOpenApi(operation =>
@@ -66,7 +66,7 @@ public sealed class AddHandler
         _tokenValidator = tokenValidator;
     }
 
-    public async Task Handle(HttpContext context, MeasurementRequest request, CancellationToken cancellationToken)
+    public async Task<Guid> Handle(HttpContext context, MeasurementRequest request, CancellationToken cancellationToken)
     {
         var userId = await _tokenValidator.ValidateAsync(context);
 
@@ -119,5 +119,7 @@ public sealed class AddHandler
         batch.SetAddAsync("air:users", measurement.UserId.ToString());
 
         batch.Execute();
+        
+        return measurement.UserId;
     }
 }
