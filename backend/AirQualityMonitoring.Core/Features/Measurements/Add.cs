@@ -109,7 +109,8 @@ public sealed class AddHandler
             pm10 = request.Pm10,
             latitude = request.Latitude,
             longitude = request.Longitude,
-            timestamp = DateTime.UtcNow
+            timestamp = DateTime.UtcNow,
+            user = userId
         });
 
         var batch = _redis.CreateBatch();
