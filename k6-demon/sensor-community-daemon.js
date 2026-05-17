@@ -57,7 +57,7 @@ export default function () {
   // Sensor registration (SAFE now)
   // =====================================
   for (const sensorId of SENSOR_IDS) {
-    const email = `sensor_${sensorId}_${randomString(8)}@test.local`
+    const email = `sensor_${sensorId}@test.local`
     const password = randomString(20)
 
     const registerRes = http.post(
