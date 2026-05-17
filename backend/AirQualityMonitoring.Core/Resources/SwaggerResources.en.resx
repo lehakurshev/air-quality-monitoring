@@ -1,0 +1,162 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  
+  <resheader name="reader">
+    <value>
+      System.Resources.ResXResourceReader, System.Windows.Forms
+    </value>
+  </resheader>
+  
+  <resheader name="writer">
+    <value>
+      System.Resources.ResXResourceWriter, System.Windows.Forms
+    </value>
+  </resheader>
+  
+  <data name="ApiTitle" xml:space="preserve">
+        <value>Air Quality Monitoring API</value>
+    </data>
+  
+  <data name="ApiDescription" xml:space="preserve">
+        <value>REST API for air quality monitoring</value>
+    </data>
+  
+  <data name="AuthTitle" xml:space="preserve">
+        <value>Authentication</value>
+    </data>
+  
+  <data name="MeasurementsTitle" xml:space="preserve">
+        <value>Measurements</value>
+    </data>
+  
+  <data name="RegisterSummary" xml:space="preserve">
+        <value>Register user</value>
+    </data>
+  
+  <data name="RegisterDescription" xml:space="preserve">
+        <value>Creates a new user.
+
+If user already exists: 
+- validates password
+- returns existing API token
+
+Example request:
+
+POST /api/auth/register
+
+{
+    "email": "user@gmail.com",
+    "password": "StrongPassword123"
+}</value>
+    </data>
+  
+  <data name="TokenSummary" xml:space="preserve">
+        <value>Create access token</value>
+    </data>
+  
+  <data name="TokenDescription" xml:space="preserve">
+        <value>Creates an access token using the API token.
+The access token is short-lived (30 minutes) and should be used in the Authorization header.
+
+Example request:
+
+POST /api/auth/token
+
+{
+    "apiToken": "existing-api-token-here"
+}
+
+Example response:
+
+{
+    "accessToken": "new-guid",
+    "accessTokenExpiry": "2025-01-27T12:00:00Z",
+    "refreshToken": "some-refresh-token",
+    "refreshTokenExpiry": "2025-02-03T12:00:00Z",
+    "userId": "user-guid",
+    "lastUpdate": "2025-01-27T11:30:00Z"
+}</value>
+    </data>
+  
+  <data name="MeasurementAddSummary" xml:space="preserve">
+        <value>Add measurement</value>
+    </data>
+  
+  <data name="MeasurementAddDescription" xml:space="preserve">
+        <value>Stores an air quality measurement for the authenticated user.
+
+Requires Bearer token obtained from /auth/token.
+
+Example request:
+
+POST /api/measurement
+Authorization: Bearer {accessToken}
+
+{
+    "co": 0.4,
+    "no2": 0.02,
+    "pm25": 12.5,
+    "pm10": 25.0,
+    "latitude": 55.751244,
+    "longitude": 37.618423
+}</value>
+    </data>
+  
+  <data name="MeasurementGetSummary" xml:space="preserve">
+        <value>Get measurements</value>
+    </data>
+  
+  <data name="MeasurementGetDescription" xml:space="preserve">
+        <value>Returns the latest measurements from all users.
+Each object contains pollutant data (co, no2, pm25, pm10, coordinates, and timestamp).
+
+No authentication required.
+
+Example response:
+
+[
+    {
+        "co": 0.4,
+        "no2": 0.02,
+        "pm25": 12.5,
+        "pm10": 25.0,
+        "latitude": 55.751244,
+        "longitude": 37.618423,
+        "timestamp": "2025-01-27T11:30:00Z"
+    }
+]</value>
+    </data>
+  
+  <data name="SwaggerContactName" xml:space="preserve">
+        <value>API Support</value>
+    </data>
+  
+  <data name="language" xml:space="preserve">
+        <value>en</value>
+    </data>
+  
+  <data name="RegisterTag" xml:space="preserve">
+        <value>Authentication</value>
+    </data>
+  
+  <data name="TokenTag" xml:space="preserve">
+        <value>Authentication</value>
+    </data>
+  
+  <data name="MeasurementAddTag" xml:space="preserve">
+        <value>Measurements</value>
+    </data>
+  
+  <data name="MeasurementGetTag" xml:space="preserve">
+        <value>Measurements</value>
+    </data>
+  
+</root>

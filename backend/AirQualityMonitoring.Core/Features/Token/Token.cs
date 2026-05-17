@@ -22,7 +22,15 @@ public sealed class TokenEndpoint : IEndpoint
                 return token == null
                     ? Results.Unauthorized()
                     : Results.Ok(token);
-            });
+            })
+            .WithOpenApi(operation =>
+            {
+                operation.OperationId = "Token";
+                return operation;
+            })
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .WithOpenApi();
     }
 }
 

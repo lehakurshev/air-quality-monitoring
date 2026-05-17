@@ -5,13 +5,18 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>1591</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.13" />
+        <PackageReference Include="Microsoft.AspNetCore.Localization" Version="2.3.10" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.13" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.6" />
+        <PackageReference Include="StackExchange.Redis" Version="2.11.8" />
+        <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="9.0.6" />
     </ItemGroup>
 
     <ItemGroup>
@@ -22,7 +27,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\AirQualityMonitoring.Infrastructure.Postgres\AirQualityMonitoring.Infrastructure.Postgres.csproj" />
-      <ProjectReference Include="..\AirQualityMonitoring.Infrastructure.Redis\AirQualityMonitoring.Infrastructure.Redis.csproj" />
     </ItemGroup>
 
 </Project>

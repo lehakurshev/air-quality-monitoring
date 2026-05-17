@@ -18,7 +18,15 @@ public sealed class GetAllEndpoint : IEndpoint
                 
                 return Results.Json(result);
             }
-        );
+        )
+        .WithOpenApi(operation =>
+        {
+            operation.OperationId = "MeasurementGet";
+            return operation;
+        })
+        .Produces(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status400BadRequest)
+        .WithOpenApi();
     }
 }
 

@@ -34,6 +34,16 @@ public sealed class AddEndpoint : IEndpoint
                     await handler.Handle(context, request, cancellationToken);
                     return Results.Ok(new { message = "Measurement added successfully" });
                 })
+            
+            .WithOpenApi(operation =>
+            {
+                operation.OperationId = "MeasurementAdd";
+                return operation;
+            })
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .WithOpenApi()
             .RequireAuthorization()
             .WithName("AddMeasurement")
             .WithOpenApi();

@@ -1,0 +1,162 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  
+  <resheader name="reader">
+    <value>
+      System.Resources.ResXResourceReader, System.Windows.Forms
+    </value>
+  </resheader>
+  
+  <resheader name="writer">
+    <value>
+      System.Resources.ResXResourceWriter, System.Windows.Forms
+    </value>
+  </resheader>
+  
+  <data name="ApiTitle" xml:space="preserve">
+        <value>API Мониторинга Качества Воздуха</value>
+    </data>
+  
+  <data name="ApiDescription" xml:space="preserve">
+        <value>REST API для мониторинга качества воздуха</value>
+    </data>
+  
+  <data name="AuthTitle" xml:space="preserve">
+        <value>Аутентификация</value>
+    </data>
+  
+  <data name="MeasurementsTitle" xml:space="preserve">
+        <value>Измерения</value>
+    </data>
+  
+  <data name="RegisterSummary" xml:space="preserve">
+        <value>Регистрация пользователя</value>
+    </data>
+  
+  <data name="RegisterDescription" xml:space="preserve">
+        <value>Создает нового пользователя.
+
+Если пользователь уже существует:
+- проверяет пароль
+- возвращает существующий API токен
+
+Пример запроса:
+
+POST /api/auth/register
+
+{
+    "email": "user@gmail.com",
+    "password": "StrongPassword123"
+}</value>
+    </data>
+  
+  <data name="TokenSummary" xml:space="preserve">
+        <value>Получение access токена</value>
+    </data>
+  
+  <data name="TokenDescription" xml:space="preserve">
+        <value>Создает access токен по API токену.
+Access токен имеет короткое время жизни (30 минут) и должен использоваться в заголовке Authorization.
+
+Пример запроса:
+
+POST /api/auth/token
+
+{
+    "apiToken": "существующий-api-токен"
+}
+
+Пример ответа:
+
+{
+    "accessToken": "новый-guid",
+    "accessTokenExpiry": "2025-01-27T12:00:00Z",
+    "refreshToken": "какой-то-refresh-токен",
+    "refreshTokenExpiry": "2025-02-03T12:00:00Z",
+    "userId": "guid-пользователя",
+    "lastUpdate": "2025-01-27T11:30:00Z"
+}</value>
+    </data>
+  
+  <data name="MeasurementAddSummary" xml:space="preserve">
+        <value>Добавление измерения</value>
+    </data>
+  
+  <data name="MeasurementAddDescription" xml:space="preserve">
+        <value>Сохраняет измерение качества воздуха для авторизованного пользователя.
+
+Требуется Bearer токен, полученный через /auth/token.
+
+Пример запроса:
+
+POST /api/measurement
+Authorization: Bearer {accessToken}
+
+{
+    "co": 0.4,
+    "no2": 0.02,
+    "pm25": 12.5,
+    "pm10": 25.0,
+    "latitude": 55.751244,
+    "longitude": 37.618423
+}</value>
+    </data>
+  
+  <data name="MeasurementGetSummary" xml:space="preserve">
+        <value>Получение измерений</value>
+    </data>
+  
+  <data name="MeasurementGetDescription" xml:space="preserve">
+        <value>Возвращает последние измерения всех пользователей.
+Каждый объект содержит данные о загрязнителях (co, no2, pm25, pm10, координаты и временная метка).
+
+Аутентификация не требуется.
+
+Пример ответа:
+
+[
+    {
+        "co": 0.4,
+        "no2": 0.02,
+        "pm25": 12.5,
+        "pm10": 25.0,
+        "latitude": 55.751244,
+        "longitude": 37.618423,
+        "timestamp": "2025-01-27T11:30:00Z"
+    }
+]</value>
+    </data>
+  
+  <data name="SwaggerContactName" xml:space="preserve">
+        <value>Поддержка API</value>
+    </data>
+  
+  <data name="language" xml:space="preserve">
+        <value>ru</value>
+    </data>
+  
+  <data name="RegisterTag" xml:space="preserve">
+        <value>Аутентификация</value>
+    </data>
+  
+  <data name="TokenTag" xml:space="preserve">
+        <value>Аутентификация</value>
+    </data>
+  
+  <data name="MeasurementAddTag" xml:space="preserve">
+        <value>Измерения</value>
+    </data>
+  
+  <data name="MeasurementGetTag" xml:space="preserve">
+        <value>Измерения</value>
+    </data>
+  
+</root>

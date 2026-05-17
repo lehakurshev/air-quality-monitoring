@@ -1,23 +1,52 @@
 ﻿using AirQualityMonitoring.Core.Interfaces;
+using AirQualityMonitoring.Core.Swagger;
 using AirQualityMonitoring.Infrastructure.Postgres;
 using ClassLibAirQualityMonitoring.Domain;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Localization;
 
 namespace AirQualityMonitoring.Core.Features.Register;
 
+
 public sealed class RegisterEndpoint : IEndpoint
 {
+        private readonly IStringLocalizerFactory _factory;
+
+        public RegisterEndpoint(IStringLocalizerFactory factory)
+        {
+            _factory = factory;
+        }
+    
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
-        builder.MapPost("/auth/register",
-            async ([FromBody] RegisterRequest req,
-                [FromServices] RegisterHandler handler,
-                CancellationToken ct) =>
+        builder.MapPost(
+                "/auth/register",
+                async (
+                    [FromBody] RegisterRequest req,
+                    [FromServices] RegisterHandler handler,
+                    CancellationToken ct) =>
+                {
+                    var token =
+                        await handler.Handle(
+                            req.Email,
+                            req.Password,
+                            ct);
+
+                    return Results.Ok(new
+                    {
+                        apiToken = token
+                    });
+                })
+            
+            .WithOpenApi(operation =>
             {
-                var token = await handler.Handle(req.Email, req.Password, ct);
-                return Results.Ok(new { apiToken = token });
-            });
+                operation.OperationId = "Register";
+                return operation;
+            })
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .WithOpenApi();
     }
 }
 

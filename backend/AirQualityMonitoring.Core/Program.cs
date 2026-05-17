@@ -1,39 +1,64 @@
+using System.Globalization;
+using System.Reflection;
 using AirQualityMonitoring.Core;
 using AirQualityMonitoring.Core.Extensions;
 using AirQualityMonitoring.Core.Features.Auth;
+using AirQualityMonitoring.Core.Swagger;
 using AirQualityMonitoring.Infrastructure.Postgres;
 using Dapper;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Localization;
+using Microsoft.Extensions.Localization;
 using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
-using Microsoft.AspNetCore.Authentication;
+using Swashbuckle.AspNetCore.SwaggerUI;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddEnvironmentVariables();
 
+// =====================================
+// Core services
+// =====================================
 builder.Services.AddEndpoints(typeof(Program).Assembly);
 
-// Аутентификация
-builder.Services.AddAuthentication(options =>
+builder.Services.AddLocalization(options =>
 {
-    options.DefaultAuthenticateScheme = "CustomScheme";
-    options.DefaultChallengeScheme = "CustomScheme";
-})
-.AddScheme<AuthenticationSchemeOptions, CustomAuthenticationHandler>("CustomScheme", null);
-
-builder.Services.AddAuthorization();
+    options.ResourcesPath = "Resources";
+});
 
 builder.Services.AddEndpointsApiExplorer();
 
+// Swagger
 builder.Services.AddSwaggerGen(options =>
 {
+    options.SwaggerDoc("ru", new OpenApiInfo
+    {
+        Version = "ru"
+    });
+
+    options.SwaggerDoc("en", new OpenApiInfo
+    {
+        Version = "en"
+    });
+
+    options.DocumentFilter<SwaggerLocalizationDocumentFilter>();
+
+    options.EnableAnnotations();
+
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "Введите токен: Bearer {token}",
+        Description = """
+        Bearer token authentication.
+
+        Example:
+        Bearer eyJhbGc...
+        """,
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
-        Scheme = "bearer"
+        Scheme = "bearer",
+        BearerFormat = "JWT"
     });
 
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -47,11 +72,33 @@ builder.Services.AddSwaggerGen(options =>
                     Id = "Bearer"
                 }
             },
-            new List<string>()
+            Array.Empty<string>()
         }
     });
+
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+
+    options.IncludeXmlComments(xmlPath, true);
 });
 
+// =====================================
+// Auth
+// =====================================
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = "CustomScheme";
+    options.DefaultChallengeScheme = "CustomScheme";
+})
+.AddScheme<AuthenticationSchemeOptions, CustomAuthenticationHandler>(
+    "CustomScheme",
+    null);
+
+builder.Services.AddAuthorization();
+
+// =====================================
+// Infrastructure
+// =====================================
 builder.Services.AddSingleton<IDbConnectionFactory>(_ =>
     new NpgsqlDbConnectionFactory(
         builder.Configuration["DbConnectionString"]!
@@ -62,22 +109,14 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
 
-    var host = config["Redis:Host"];
-    var user = config["Redis:User"];
-    var password = config["Redis:Password"];
-
     var options = new ConfigurationOptions
     {
         AbortOnConnectFail = false
     };
 
-    options.EndPoints.Add(host);
-
-    if (!string.IsNullOrEmpty(user))
-        options.User = user;
-
-    if (!string.IsNullOrEmpty(password))
-        options.Password = password;
+    options.EndPoints.Add(config["Redis:Host"]);
+    options.User = config["Redis:User"];
+    options.Password = config["Redis:Password"];
 
     return ConnectionMultiplexer.Connect(options);
 });
@@ -89,12 +128,29 @@ SqlMapper.AddTypeHandler(new JsonDocumentTypeHandler());
 
 var app = builder.Build();
 
-app.UseSwagger();
-app.UseSwaggerUI();
 
+// =====================================
+// IMPORTANT: NO culture switching here
+// =====================================
+app.UseSwagger();
+
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint("/swagger/ru/swagger.json", "RU");
+    options.SwaggerEndpoint("/swagger/en/swagger.json", "EN");
+
+    options.RoutePrefix = "swagger";
+});
+
+// =====================================
+// Auth middleware
+// =====================================
 app.UseAuthentication();
 app.UseAuthorization();
 
+// =====================================
+// Endpoints
+// =====================================
 app.UseEndpoints(app.MapGroup("/api"));
 
 app.Run();

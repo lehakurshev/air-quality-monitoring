@@ -3,11 +3,6 @@ using System.Text.Json;
 using Dapper;
 using Npgsql;
 using NpgsqlTypes;
-// Добавьте этот using для NpgsqlParameter
-
-// Добавьте этот using для NpgsqlDbType
-
-// Этот обработчик будет для Npgsql (PostgreSQL)
 namespace AirQualityMonitoring.Core;
 
 public class JsonDocumentTypeHandler : SqlMapper.TypeHandler<JsonDocument>
