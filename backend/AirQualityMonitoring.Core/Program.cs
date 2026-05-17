@@ -136,8 +136,8 @@ app.UseSwagger();
 
 app.UseSwaggerUI(options =>
 {
-    options.SwaggerEndpoint("/swagger/ru/swagger.json", "RU");
-    options.SwaggerEndpoint("/swagger/en/swagger.json", "EN");
+    options.SwaggerEndpoint("/api/swagger/ru/swagger.json", "RU");
+    options.SwaggerEndpoint("/api/swagger/en/swagger.json", "EN");
 
     options.RoutePrefix = "swagger";
 });
