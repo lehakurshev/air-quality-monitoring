@@ -101,6 +101,18 @@ services:
     networks:
       - aq-network
 
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+    networks:
+      - aq-network
+
   sensor-community-daemon:
     image: grafana/k6:latest
     profiles: ["core"]
