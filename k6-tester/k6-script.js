@@ -171,6 +171,6 @@ export function loadTest() {
     }
 
     // refresh token every 30 mins
-    sleep(1800)
+    //sleep(1800)
   }
 }
