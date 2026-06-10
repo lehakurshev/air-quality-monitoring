@@ -3,9 +3,18 @@ import { check, sleep } from 'k6'
 import papaparse from 'https://jslib.k6.io/papaparse/5.1.1/index.js'
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.4/index.js'
 import { SharedArray } from 'k6/data'
+import { Trend, Rate } from 'k6/metrics'
 
 const BASE_URL = 'http://backend:8080'
 const TARGET_COORDINATES = 1000
+
+const registerDuration = new Trend('register_duration')
+const tokenDuration = new Trend('token_duration')
+const measurementDuration = new Trend('measurement_duration')
+
+const registerFailureRate = new Rate('register_failure_rate')
+const tokenFailureRate = new Rate('token_failure_rate')
+const measurementFailureRate = new Rate('measurement_failure_rate')
 
 // =====================================
 // CSV parsing (runs once)
@@ -51,14 +60,28 @@ const finalCoordinates = new SharedArray('coordinates', () => {
 export const options = {
   discardResponseBodies: true,
 
+  thresholds: {
+    http_req_failed: ['rate<0.01'],
+    http_req_duration: ['p(95)<100'],
+
+    register_failure_rate: ['rate<0.01'],
+    token_failure_rate: ['rate<0.01'],
+    measurement_failure_rate: ['rate<0.01'],
+
+    register_duration: ['p(95)<200'],
+    token_duration: ['p(95)<200'],
+    measurement_duration: ['p(95)<100'],
+  },
+
   scenarios: {
     load: {
       executor: 'ramping-vus',
       startVUs: 0,
       stages: [
-        { duration: '3m', target: finalCoordinates.length }, // плавнее разгон
-        { duration: '57m', target: finalCoordinates.length },
+        { duration: '3m', target: finalCoordinates.length },
+        { duration: '62m', target: finalCoordinates.length },
       ],
+      gracefulStop: '5m',
       exec: 'loadTest',
     },
   },
@@ -99,6 +122,9 @@ function initVuState() {
     }
   )
 
+  registerDuration.add(registerRes.timings.duration)
+  registerFailureRate.add(registerRes.status !== 200)
+
   check(registerRes, {
     'register ok': (r) => r.status === 200,
   })
@@ -132,6 +158,9 @@ export function loadTest() {
       }
     )
 
+    tokenDuration.add(tokenRes.timings.duration)
+    tokenFailureRate.add(tokenRes.status !== 200)
+
     check(tokenRes, {
       'token ok': (r) => r.status === 200,
     })
@@ -164,6 +193,9 @@ export function loadTest() {
         params
       )
 
+      measurementDuration.add(res.timings.duration)
+      measurementFailureRate.add(res.status !== 200)
+
       check(res, {
         'measurement ok': (r) => r.status === 200,
       })
@@ -179,7 +211,15 @@ export function loadTest() {
 export function handleSummary(data) {
   return {
     '/scripts/results.json': JSON.stringify(data, null, 2),
-    '/scripts/results.txt': textSummary(data, { indent: ' ', enableColors: false }),
-    stdout: textSummary(data, { indent: ' ', enableColors: true }),
+
+    '/scripts/results.txt': textSummary(data, {
+      indent: ' ',
+      enableColors: false,
+    }),
+
+    stdout: textSummary(data, {
+      indent: ' ',
+      enableColors: true,
+    }),
   }
 }
