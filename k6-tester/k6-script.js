@@ -174,3 +174,11 @@ export function loadTest() {
     //sleep(1800)
   }
 }
+
+export function handleSummary(data) {
+  return {
+    '/scripts/results.json': JSON.stringify(data, null, 2),
+    '/scripts/results.txt': textSummary(data, { indent: ' ', enableColors: false }),
+    stdout: textSummary(data, { indent: ' ', enableColors: true }),
+  }
+}
